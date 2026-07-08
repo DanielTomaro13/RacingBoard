@@ -1,0 +1,20 @@
+# One-click deploy to Render (https://render.com) — makes the backend live so the
+# GitHub Pages page can connect to it. In Render: New → Blueprint → this repo.
+# After it deploys, set docs/config.js apiBase to the service URL (or open the
+# page with ?api=wss://<service>.onrender.com).
+services:
+  - type: web
+    name: racingboard
+    runtime: python
+    plan: free
+    buildCommand: >
+      pip install -r requirements.txt
+      "git+https://github.com/DanielTomaro13/sportsdata-mcp"
+    startCommand: python run.py
+    envVars:
+      - key: MF_HOST
+        value: 0.0.0.0
+      - key: MF_MAX_ACTIVE_RACES
+        value: "12"
+      - key: PYTHON_VERSION
+        value: "3.12.4"

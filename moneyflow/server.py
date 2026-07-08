@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -61,6 +62,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Racing Money Flow", lifespan=lifespan)
+
+# Allow a statically-hosted page (e.g. GitHub Pages) to call this backend when
+# it's deployed separately and pointed here via ?api=.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/api/health")
+async def health() -> JSONResponse:
+    return JSONResponse({"ok": True, "races": len(store.races)})
 
 
 @app.get("/api/board")

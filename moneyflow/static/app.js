@@ -159,10 +159,12 @@
     state.selected = raceKey;
     if (window.__subscribe) window.__subscribe(raceKey);
     if (state.details[raceKey]) renderDetail();
-    else if (state.mode === "live" || state.mode === "down") {
+    else if ((state.mode === "live" || state.mode === "down") && !cfg.apiBase) {
+      // Same-origin backend: fetch detail immediately. A remote backend (apiBase)
+      // pushes every active race's detail over the WebSocket, so no REST needed.
       fetch(`/api/race/${encodeURIComponent(raceKey)}`).then((r) => r.ok ? r.json() : null)
         .then((d) => { if (d) { state.details[raceKey] = d; renderDetail(); } });
-    }
+    } else renderDetail();
     renderBoard();
   }
 
@@ -302,6 +304,10 @@
   }, 1000);
 
   // ---------- boot ----------
-  if (cfg.forceReplay && !qs.get("api")) startReplay();
+  // A configured/overridden backend wins: try live, fall back to replay if it's
+  // unreachable. Otherwise honour forceReplay (Pages) or go live (local server).
+  const apiOverride = qs.get("api") || cfg.apiBase;
+  if (apiOverride) { cfg.apiBase = apiOverride; liveConnect(); }
+  else if (cfg.forceReplay) startReplay();
   else liveConnect();
 })();

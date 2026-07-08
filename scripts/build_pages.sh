@@ -13,14 +13,14 @@ cp "$SRC/styles.css" "$DOCS/styles.css"
 cp "$SRC/app.js"     "$DOCS/app.js"
 cp "$SRC/data/replay.json" "$DOCS/data/replay.json"
 
-# Pages config: force replay.
+# Pages config. With no backend it replays the captured sequence. To make the
+# public page LIVE, deploy the backend (see render.yaml) and set apiBase to its
+# URL below — the page then connects live and only replays if the backend is down.
 cat > "$DOCS/config.js" <<'EOF'
-// GitHub Pages build — no backend, so replay the captured sequence.
-// Connect a deployed backend instead with ?api=wss://your-host
 window.MF_CONFIG = {
-  forceReplay: true,
+  forceReplay: true,              // ignored once apiBase is set
   replayUrl: "data/replay.json",
-  apiBase: null,
+  apiBase: null,                  // e.g. "wss://racingboard.onrender.com" → live
 };
 EOF
 

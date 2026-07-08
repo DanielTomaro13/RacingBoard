@@ -24,17 +24,23 @@ from .config import settings
 
 class SportsDataEngine:
     def __init__(self, mcp_src: str | None = None) -> None:
-        src = mcp_src or settings.sportsdata_mcp_src
-        if not Path(src).exists():
-            raise RuntimeError(
-                f"sportsdata-mcp src not found at {src!r}. "
-                "Set SPORTSDATA_MCP_SRC to your checkout's src directory."
-            )
-        if src not in sys.path:
-            sys.path.insert(0, src)
+        # Two ways to find the engine:
+        #   1. installed package  — `pip install git+https://…/sportsdata-mcp`
+        #      (used in Docker / cloud deploys); importable with no path.
+        #   2. local src checkout — SPORTSDATA_MCP_SRC on PYTHONPATH (dev laptop).
+        try:
+            import sportsdata_mcp  # noqa: F401  (probe: already importable?)
+        except ImportError:
+            src = mcp_src or settings.sportsdata_mcp_src
+            if not Path(src).exists():
+                raise RuntimeError(
+                    "sportsdata-mcp not found. Either `pip install "
+                    "git+https://github.com/DanielTomaro13/sportsdata-mcp` or set "
+                    f"SPORTSDATA_MCP_SRC to a checkout's src dir (tried {src!r})."
+                )
+            if src not in sys.path:
+                sys.path.insert(0, src)
 
-        # Imported lazily (after sys.path is patched) so the dependency is optional
-        # until the engine is actually constructed.
         from sportsdata_mcp.spec_loader import load_all_specs
         from sportsdata_mcp.config import load_config
         from sportsdata_mcp.http_client import HTTPClient
