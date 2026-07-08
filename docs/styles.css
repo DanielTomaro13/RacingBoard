@@ -191,8 +191,10 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .grow .share .bar { position: absolute; left: 0; bottom: -3px; height: 2px; background: var(--code-R); opacity: .55; }
 .grow .delta.up { color: var(--up); font-weight: 700; }
 .grow .delta.flatc { color: var(--muted); }
-.grow .fair.hot { color: var(--amber); font-weight: 700; background: color-mix(in srgb, var(--amber) 14%, transparent); border-radius: 3px; }
 .grow .best { color: var(--up); font-weight: 700; }
+/* value: best book price is longer than fair — a genuine overlay */
+.grow .best.value { color: var(--amber); font-weight: 800; background: color-mix(in srgb, var(--amber) 18%, transparent); border-radius: 3px; box-shadow: inset 0 0 0 1px var(--amber-dim); }
+.grow .best.value .bk { color: var(--amber-dim); }
 .grow .best .bk { font-size: 8px; color: var(--muted); }
 .grow .val.pos { color: var(--up); } .grow .val.neg { color: var(--muted); }
 .grow .bf { color: var(--ink2); }
