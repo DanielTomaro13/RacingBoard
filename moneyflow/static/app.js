@@ -427,7 +427,16 @@
   };
   setInterval(() => {
     $("clock").textContent = new Date().toLocaleTimeString("en-GB");
-    renderTop(); renderBoard();
+    // Update time-to-go text in place — no full board teardown every second.
+    document.querySelectorAll("#board .brow[data-key] .ttg").forEach((el) => {
+      const r = state.board.find((x) => x.race_key === el.closest("[data-key]").dataset.key);
+      if (r && !r.result_winner) {
+        const t = ttg(r.start_time);
+        if (el.firstChild) el.firstChild.textContent = t;
+        el.classList.toggle("soon", (new Date(r.start_time) - Date.now()) < 5 * 60000);
+      }
+    });
+    renderTop();
   }, 1000);
 
   const api = qs.get("api") || cfg.apiBase;

@@ -9,6 +9,7 @@ favourite is graded too as a baseline: a signal only "works" if it beats the fav
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -59,7 +60,11 @@ class Scorer:
             self._grade(sig, results)
             self._graded.add(race_key)
             self._pending.pop(race_key, None)
-            self._save()
+            # Keep the (blocking) disk write off the event loop.
+            try:
+                asyncio.get_running_loop().run_in_executor(None, self._save)
+            except RuntimeError:
+                self._save()
         elif status == "OPEN":
             self._pending[race_key] = self._extract(detail)
 

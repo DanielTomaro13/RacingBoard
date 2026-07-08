@@ -24,6 +24,7 @@ class Hub:
 
     def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
+        self._subs: dict[WebSocket, str] = {}  # which race each client is viewing
         self._lock = asyncio.Lock()
         self._send_lock = asyncio.Lock()  # serialise sends across concurrent loops
 
@@ -34,6 +35,15 @@ class Hub:
     async def remove(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.discard(ws)
+            self._subs.pop(ws, None)
+
+    def set_sub(self, ws: WebSocket, race_key: str) -> None:
+        self._subs[ws] = race_key
+
+    def subscribed_keys(self) -> set[str]:
+        """Races at least one connected client is currently viewing — the fast
+        loop only broadcasts detail for these, not all ~24 active races."""
+        return set(self._subs.values())
 
     async def broadcast(self, message: dict) -> None:
         data = json.dumps(message, default=str)
@@ -53,7 +63,7 @@ class Hub:
 
 store = Store()
 hub = Hub()
-poller = Poller(store, broadcast=hub.broadcast)
+poller = Poller(store, broadcast=hub.broadcast, subscribed=hub.subscribed_keys)
 
 
 @asynccontextmanager
@@ -114,6 +124,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
             except json.JSONDecodeError:
                 continue
             if req.get("type") == "subscribe" and req.get("race_key"):
+                hub.set_sub(ws, req["race_key"])   # so the fast loop targets it
                 detail = store.race_detail(req["race_key"])
                 if detail:
                     await ws.send_text(json.dumps(

@@ -79,15 +79,23 @@ class RaceState:
             else:
                 r.direction = "flat"
 
-    def sparkline(self, runner_number: int, field: str = "tote_pool_share") -> list[float | None]:
-        out: list[float | None] = []
-        for snap in self.history:
-            val = None
+    def sparklines(self, field: str = "tote_pool_share", target: int = 80) -> dict[int, list[float | None]]:
+        """All runners' sparklines in ONE pass (was O(history × runners²) when
+        called per-runner). Downsampled to ~`target` points so the payload and
+        cost stay bounded as history fills, while preserving the trend shape."""
+        hist = list(self.history)
+        if len(hist) > target:
+            step = len(hist) / target
+            hist = [hist[min(int(i * step), len(hist) - 1)] for i in range(target)]
+        nums: set[int] = set()
+        for snap in hist:
             for r in snap.runners:
-                if r.number == runner_number:
-                    val = getattr(r, field, None)
-                    break
-            out.append(val)
+                nums.add(r.number)
+        out: dict[int, list[float | None]] = {n: [] for n in nums}
+        for snap in hist:
+            by_num = {r.number: getattr(r, field, None) for r in snap.runners}
+            for n in nums:
+                out[n].append(by_num.get(n))
         return out
 
 
@@ -232,6 +240,7 @@ class Store:
             reverse=True,
         )
         bf_flow = _betfair_flow(st)   # estimated Betfair $ per runner since open
+        sparks = st.sparklines("tote_pool_share")   # all runners in one history pass
         return {
             "ref": st.ref.to_dict(),
             "status": snap.status,
@@ -245,7 +254,7 @@ class Store:
             "runners": [
                 {
                     **r.to_dict(),
-                    "share_spark": st.sparkline(r.number, "tote_pool_share"),
+                    "share_spark": sparks.get(r.number, []),
                     "bf_money_est": bf_flow.get(r.number),
                     "confirm": _confirm_count(r), "confirmed": _confirmed(r),
                 }

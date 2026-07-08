@@ -84,7 +84,27 @@ class RunnerFlow:
     direction: str = "flat"                # firming | drifting | flat
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        # Hand-built (not dataclasses.asdict) — asdict deep-copies every field and
+        # this runs for ~288 runners every 3s in the Betfair loop. corp / corp_short
+        # are referenced directly (serialized immediately, never mutated in place).
+        return {
+            "number": self.number, "name": self.name, "scratched": self.scratched,
+            "tote_win": self.tote_win, "tote_pool_share": self.tote_pool_share,
+            "fixed_win": self.fixed_win,
+            "corp": self.corp, "corp_best": self.corp_best, "corp_best_book": self.corp_best_book,
+            "corp_short": self.corp_short,
+            "fair_price": self.fair_price, "value_pct": self.value_pct,
+            "bf_back": self.bf_back, "bf_lay": self.bf_lay, "bf_last": self.bf_last,
+            "bf_wom": self.bf_wom, "bf_implied": self.bf_implied,
+            "betr_short": self.betr_short,
+            "last5": self.last5, "jockey": self.jockey, "trainer": self.trainer,
+            "barrier": self.barrier, "weight": self.weight, "speed_band": self.speed_band,
+            "form_rating": self.form_rating, "comment": self.comment,
+            "best_time": self.best_time, "career": self.career, "best_bet": self.best_bet,
+            "share_open": self.share_open, "share_delta": self.share_delta,
+            "share_delta_recent": self.share_delta_recent, "price_move_pct": self.price_move_pct,
+            "direction": self.direction,
+        }
 
 
 @dataclass

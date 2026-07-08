@@ -25,7 +25,6 @@ from .scorer import Scorer
 from .sources import (
     BetfairMatcher,
     apply_betfair_market,
-    betfair_enrich,
     discover_races,
     finalize_snapshot,
     tab_snapshot,
@@ -34,9 +33,10 @@ from .store import Store
 
 
 class Poller:
-    def __init__(self, store: Store, broadcast=None) -> None:
+    def __init__(self, store: Store, broadcast=None, subscribed=None) -> None:
         self.store = store
         self.broadcast = broadcast  # async callable(dict) or None
+        self.subscribed = subscribed  # callable()->set[race_key] of races clients view
         self.engine = SportsDataEngine()
         self.betfair = BetfairClient() if settings.enable_betfair else None
         self.matcher = BetfairMatcher(self.betfair) if self.betfair else None
@@ -168,11 +168,18 @@ class Poller:
         if snap is None:
             return
 
-        if self.betfair and ref.betfair_market_id:
-            try:
-                await betfair_enrich(self.betfair, ref.betfair_market_id, snap)
-            except Exception:
-                pass
+        # Carry Betfair forward from the previous snapshot instead of making a
+        # per-race exchange call here — the fast Betfair loop (every ~3s) already
+        # batches ALL markets in one call and refreshes st.latest. This drops N
+        # un-batched Betfair HTTP calls every price cycle with no visible gap.
+        if self.betfair and ref.betfair_market_id and st.latest is not None:
+            prev = {r.number: r for r in st.latest.runners}
+            snap.bf_total_matched = st.latest.bf_total_matched
+            for r in snap.runners:
+                p = prev.get(r.number)
+                if p:
+                    r.bf_back, r.bf_lay, r.bf_last = p.bf_back, p.bf_lay, p.bf_last
+                    r.bf_wom, r.bf_implied = p.bf_wom, p.bf_implied
 
         if self.corporate:
             try:
@@ -196,7 +203,7 @@ class Poller:
         detail = self.store.race_detail(race_key)
         if detail:
             self.scorer.observe(race_key, detail)   # grade signals as races resolve
-            if self.broadcast:
+            if self.broadcast and self._is_viewed(race_key):
                 await self.broadcast({"type": "race", "race_key": race_key, "detail": detail})
 
     # ---- Betr movers loop (independent, slow, never blocks Betfair) ----
@@ -247,7 +254,16 @@ class Poller:
         if self.broadcast and updated:
             await self.broadcast({"type": "board", "board": self.store.board(),
                                   "movers": self.store.movers(), "value": self.store.value(), "scores": self.scorer.stats()})
+            # Only build+send the heavy per-runner detail for races clients are
+            # actually viewing — not all ~24 active markets every 3s.
             for key in updated:
+                if not self._is_viewed(key):
+                    continue
                 detail = self.store.race_detail(key)
                 if detail:
                     await self.broadcast({"type": "race", "race_key": key, "detail": detail})
+
+    def _is_viewed(self, race_key: str) -> bool:
+        if self.subscribed is None:      # no hub (e.g. capture script) → send all
+            return True
+        return race_key in self.subscribed()

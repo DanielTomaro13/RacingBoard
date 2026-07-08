@@ -313,11 +313,9 @@ def apply_betfair_market(snapshot: RaceSnapshot, mkt: dict[str, Any]) -> None:
         rf.bf_back = back_p
         rf.bf_lay = lay_p
         rf.bf_last = (run.get("state", {}) or {}).get("lastPriceTraded")
-        if back_s and lay_s:
-            rf.bf_wom = back_s / (back_s + lay_s)
-        if back_p and lay_p:
-            mid = (back_p + lay_p) / 2
-            rf.bf_implied = 1.0 / mid if mid else None
+        # Reset to None (not left stale) when a side empties — e.g. market suspended.
+        rf.bf_wom = back_s / (back_s + lay_s) if (back_s and lay_s) else None
+        rf.bf_implied = 1.0 / ((back_p + lay_p) / 2) if (back_p and lay_p) else None
 
 
 async def betfair_enrich(
