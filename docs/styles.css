@@ -146,9 +146,12 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .panel > header h2.amberh { color: var(--amber); }
 .frow .amber { color: var(--amber); }
 .frow .v.amber .bk { color: var(--amber-dim); font-size: 9px; }
+/* a runner that is BOTH firming and value — the standout */
+.frow.both { box-shadow: inset 2px 0 0 var(--amber); background: color-mix(in srgb, var(--amber) 7%, transparent); }
 
 /* ---------- detail ---------- */
-.detail { min-height: 70vh; }
+/* fill the viewport height so the runner grid stretches — no blank at the bottom */
+.detail { display: flex; flex-direction: column; min-height: calc(100vh - 92px); }
 .empty { color: var(--muted); text-align: center; padding: 90px 0; font-family: var(--mono); letter-spacing: 2px; }
 .empty .big { font-size: 44px; color: var(--line2); margin-bottom: 10px; }
 .dhead { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--panel2); border-bottom: 1px solid var(--line); }
@@ -177,12 +180,13 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .pickcard .nums .c .k { font-size: 8px; color: var(--muted); letter-spacing: .5px; }
 .pickcard .nums .c .val { font-size: 15px; font-weight: 700; }
 
-/* runner grid (watchlist) — runner sized to names, TREND takes the rest */
-.grid { width: 100%; }
+/* runner grid (watchlist) — runner sized to names, TREND takes the rest.
+   grid flex-fills the detail panel so rows stretch to remove blank space. */
+.grid { width: 100%; flex: 1; display: flex; flex-direction: column; }
 .ghead, .grow { display: grid; grid-template-columns: 20px 150px 46px 38px 44px 58px 34px 34px 50px 56px minmax(110px, 1fr); gap: 7px; align-items: center; }
-.ghead { padding: 6px 12px; font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--line2); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.ghead { flex: 0 0 auto; padding: 6px 12px; font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--line2); position: sticky; top: 0; background: var(--panel); z-index: 1; }
 .ghead .r { text-align: right; }
-.grow { padding: 8px 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+.grow { flex: 1 1 0; min-height: 38px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
 .grow:hover { background: var(--panel2); }
 .grow.firm { box-shadow: inset 2px 0 0 var(--up); }
 .grow.isPick { background: color-mix(in srgb, var(--amber) 8%, transparent); }
@@ -191,7 +195,9 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .grow .nm { font-family: var(--sans); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; }
 .grow .r { text-align: right; }
 .grow .share { position: relative; }
-.grow .share .bar { position: absolute; left: 0; bottom: -3px; height: 2px; background: var(--code-R); opacity: .55; }
+.grow .share .bar { position: absolute; left: 0; bottom: -3px; height: 2px; background: var(--code-R); opacity: .7; }
+.grow .share .bar.up { background: var(--up); }   /* firming */
+.grow .share .bar.dn { background: var(--down); } /* drifting */
 .grow .delta.up { color: var(--up); font-weight: 700; }
 .grow .delta.flatc { color: var(--muted); }
 .grow .best { color: var(--up); font-weight: 700; }
@@ -207,7 +213,7 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .womcell { display: flex; justify-content: flex-end; }
 .womb { width: 48px; height: 8px; border-radius: 2px; overflow: hidden; background: var(--down-dim); display: flex; }
 .womb b { display: block; height: 100%; background: var(--up); }
-.spark { width: 100%; height: 26px; display: block; }
+.spark { width: 100%; height: 30px; display: block; align-self: center; }
 
 /* flash on change */
 @keyframes flashUp { from { background: color-mix(in srgb, var(--up) 40%, transparent); } to { background: transparent; } }

@@ -30,7 +30,7 @@
       state.board = msg.board || [];
       state.movers = msg.movers || [];
       state.value = msg.value || [];
-      renderTop(); renderTape(); renderBoard(); renderFirmers(); renderValue();
+      renderTop(); renderTape(); renderBoard(); renderSignals();
       if (!state.selected && state.board.length) {
         const withPick = state.movers[0] ? state.movers[0].race_key : state.board[0].race_key;
         select(withPick);
@@ -130,36 +130,40 @@
     el.querySelectorAll(".brow[data-key]").forEach((x) => x.onclick = () => select(x.dataset.key));
   }
 
-  // ---------- firmers ----------
-  function renderFirmers() {
-    const el = $("firmers");
-    if (!state.movers.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no shorteners yet…</span><span></span><span></span></div>`; return; }
-    el.innerHTML = state.movers.map((m) => {
-      const v = m.value_pct;
+  // ---------- signals: firmers (money in) + value (overlays), merged ----------
+  function renderSignals() {
+    const el = $("signals");
+    if (!el) return;
+    // merge by runner: a row can be firming, value, or both (the standout)
+    const map = new Map();
+    const keyOf = (m) => m.race_key + ":" + m.number;
+    state.movers.forEach((m) => map.set(keyOf(m), {
+      race_key: m.race_key, code: m.code, venue: m.venue, race_no: m.race_no, runner: m.runner,
+      firm: m.share_delta, value: null, best: null, book: null,
+    }));
+    state.value.forEach((m) => {
+      const e = map.get(keyOf(m)) || {
+        race_key: m.race_key, code: m.code, venue: m.venue, race_no: m.race_no, runner: m.runner, firm: null,
+      };
+      e.value = m.value_pct; e.best = m.corp_best; e.book = m.corp_best_book;
+      map.set(keyOf(m), e);
+    });
+    const rows = [...map.values()];
+    if (!rows.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no signals yet…</span><span></span><span></span></div>`; $("signals-count").textContent = ""; return; }
+    // both first, then firmers by Δ, then value-only by %
+    const tier = (e) => (e.firm && e.value ? 2 : e.firm ? 1 : 0);
+    rows.sort((a, b) => tier(b) - tier(a) || ((b.firm || 0) - (a.firm || 0)) || ((b.value || 0) - (a.value || 0)));
+    $("signals-count").textContent = rows.length;
+    el.innerHTML = rows.map((e) => {
+      const both = e.firm && e.value;
       return `
-      <div class="frow" data-key="${esc(m.race_key)}" data-tip="mover" data-json='${esc(JSON.stringify(m))}'>
-        <span class="ar">▲</span>
-        <span class="who"><div class="n">${esc(m.runner)}</div><div class="c"><span class="code ${m.code}">${m.code}</span> ${esc(m.venue)} R${m.race_no}</div></span>
-        <span class="d">+${(m.share_delta * 100).toFixed(1)}</span>
-        <span class="v ${v > 0 ? "pos" : "neg"}">${v != null ? (v > 0 ? "+" : "") + v.toFixed(0) + "%" : ""}</span>
+      <div class="frow ${both ? "both" : ""}" data-key="${esc(e.race_key)}">
+        <span class="ar ${e.firm ? "up" : "amber"}">${e.firm ? "▲" : "◆"}</span>
+        <span class="who"><div class="n">${esc(e.runner)}</div><div class="c"><span class="code ${e.code}">${e.code}</span> ${esc(e.venue)} R${e.race_no}</div></span>
+        <span class="d up">${e.firm ? "+" + (e.firm * 100).toFixed(1) : ""}</span>
+        <span class="v amber">${e.value != null ? "+" + e.value.toFixed(0) + "%" : ""}</span>
       </div>`;
     }).join("");
-    el.querySelectorAll(".frow[data-key]").forEach((x) => x.onclick = () => select(x.dataset.key));
-    wireTips(el);
-  }
-
-  // ---------- value (best price > fair) ----------
-  function renderValue() {
-    const el = $("value");
-    if (!el) return;
-    if (!state.value.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no value on offer…</span><span></span><span></span></div>`; return; }
-    el.innerHTML = state.value.map((m) => `
-      <div class="frow val-row" data-key="${esc(m.race_key)}">
-        <span class="ar amber">◆</span>
-        <span class="who"><div class="n">${esc(m.runner)}</div><div class="c"><span class="code ${m.code}">${m.code}</span> ${esc(m.venue)} R${m.race_no}${m.direction === "firming" ? ' <span class="up">▲</span>' : ""}</div></span>
-        <span class="d amber">+${m.value_pct.toFixed(0)}%</span>
-        <span class="v amber">${m.corp_best ? m.corp_best.toFixed(2) : ""} <span class="bk">${BOOK[m.corp_best_book] || ""}</span></span>
-      </div>`).join("");
     el.querySelectorAll(".frow[data-key]").forEach((x) => x.onclick = () => select(x.dataset.key));
   }
 
@@ -235,7 +239,7 @@
       <div class="grow ${r.direction === "firming" ? "firm" : ""} ${r.number === pickNum ? "isPick" : ""} ${fl}" data-tip="runner" data-json='${esc(JSON.stringify(r))}'>
         <span class="num">${r.number}</span>
         <span class="nm">${esc(r.name)} ${r.direction === "firming" ? '<span class="up">▲</span>' : ""}</span>
-        <span class="r share">${pct(share)}<span class="bar" style="width:${barW}%"></span></span>
+        <span class="r share">${pct(share)}<span class="bar ${r.direction === "drifting" ? "dn" : r.direction === "firming" ? "up" : ""}" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
         <span class="r fair">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
         <span class="r best ${r.value_pct != null && r.value_pct > 0 ? "value" : ""}">${r.corp_best ? r.corp_best.toFixed(2) : "–"}${r.corp_best_book ? ` <span class="bk">${BOOK[r.corp_best_book] || ""}</span>` : ""}</span>
@@ -243,7 +247,7 @@
         <span class="r bf">${r.bf_back ? r.bf_back.toFixed(1) : "–"}</span>
         <span class="womcell">${r.bf_wom != null ? `<span class="womb" title="back vs lay pressure"><b style="width:${(r.bf_wom * 100).toFixed(0)}%"></b></span>` : '<span class="flatc">·</span>'}</span>
         <span class="r bfin ${r.bf_money_est ? "" : "z"}">${moneyShort(r.bf_money_est) || "·"}</span>
-        <canvas class="spark" height="26" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
+        <canvas class="spark" height="30" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
       </div>`;
   }
 
