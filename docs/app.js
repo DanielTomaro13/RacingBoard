@@ -112,17 +112,18 @@
     const s = state.scores;
     if (!s || !s.races) { el.innerHTML = `<div class="noscore">grading as races resolve…</div>`; $("score-races").textContent = ""; return; }
     $("score-races").textContent = s.races + " races";
-    const fav = s.favourite.win_pct;
-    const row = (label, d, cls) => {
-      if (!d || !d.n) return `<tr><td>${label}</td><td class="mut">–</td><td class="mut">–</td><td></td></tr>`;
-      const edge = (d.win_pct != null && fav != null) ? d.win_pct - fav : null;
-      return `<tr class="${cls}"><td>${label} <span class="sn">${d.n}</span></td><td>${d.win_pct != null ? d.win_pct + "%" : "–"}</td><td class="mut">${d.place_pct != null ? d.place_pct + "%" : "–"}</td><td class="${edge > 0 ? "up" : edge < 0 ? "down" : "mut"}">${edge != null ? (edge > 0 ? "+" : "") + edge.toFixed(0) : ""}</td></tr>`;
+    const sign = (x) => (x > 0 ? "up" : x < 0 ? "down" : "mut");
+    const row = (label, d) => {
+      if (!d || !d.n) return `<tr><td>${label}</td><td class="mut">–</td><td class="mut">–</td><td class="mut">–</td></tr>`;
+      const roi = d.roi, pnl = d.profit;
+      return `<tr title="${d.bets || 0} bets · bank $${d.bankroll}"><td>${label} <span class="sn">${d.n}</span></td><td>${d.win_pct != null ? d.win_pct + "%" : "–"}</td><td class="${roi != null ? sign(roi) : "mut"}">${roi != null ? (roi > 0 ? "+" : "") + roi + "%" : "–"}</td><td class="${pnl != null ? sign(pnl) : "mut"}">${pnl != null ? (pnl >= 0 ? "+$" : "−$") + Math.abs(pnl).toFixed(0) : "–"}</td></tr>`;
     };
-    el.innerHTML = `<table class="scoretbl"><thead><tr><th></th><th>WIN</th><th>PLC</th><th>vs&nbsp;FAV</th></tr></thead><tbody>
-      ${row("PICK", s.pick, "")}
-      ${row('<span class="up">✓</span> CONF', s.confirmed, "")}
-      ${row('<span class="amberh">◆</span> VALUE', s.value, "")}
-      ${row("FAV", s.favourite, "mut")}
+    el.innerHTML = `<div class="bankline">flat $${s.stake} bets · $${s.bankroll} bank · best price</div>
+      <table class="scoretbl"><thead><tr><th></th><th>WIN</th><th>ROI</th><th>P&amp;L</th></tr></thead><tbody>
+      ${row("PICK", s.pick)}
+      ${row('<span class="up">✓</span> CONF', s.confirmed)}
+      ${row('<span class="amberh">◆</span> VALUE', s.value)}
+      ${row("FAV", s.favourite)}
     </tbody></table>`;
   }
 

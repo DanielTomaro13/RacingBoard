@@ -84,6 +84,7 @@ body {
 /* ---------- scorecard ---------- */
 .scores { padding: 4px 10px 8px; }
 .noscore { color: var(--muted); font-family: var(--mono); font-size: 11px; padding: 8px 2px; }
+.bankline { font-family: var(--mono); font-size: 9.5px; color: var(--muted); padding: 2px 0 6px; letter-spacing: .3px; }
 .scoretbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .scoretbl th { font-size: 8.5px; letter-spacing: .5px; color: var(--muted); text-align: right; padding: 2px 4px; font-weight: 400; }
 .scoretbl th:first-child { text-align: left; }

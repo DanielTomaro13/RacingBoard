@@ -64,6 +64,10 @@ class Settings:
     # Where the signal scoreboard persists its running hit-rate across sessions.
     scores_path: str = os.environ.get(
         "MF_SCORES_PATH", os.path.join(os.path.expanduser("~"), ".racingboard", "scores.json"))
+    # Scorecard P&L: flat stake per selection on a starting bankroll (win at best
+    # available fixed price). ROI/profit tell you if a signal actually makes money.
+    bankroll: float = float(os.environ.get("MF_BANKROLL", "100"))
+    bet_stake: float = float(os.environ.get("MF_BET_STAKE", "1"))
 
     # HTTP server.
     host: str = os.environ.get("MF_HOST", "127.0.0.1")
