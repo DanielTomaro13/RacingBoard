@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RacingBoard — live money flow</title>
+  <meta name="description" content="Real-time money-flow board for Thoroughbred, Greyhound and Harness racing — tote pool share, Betfair weight of money, firmers and drifters." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233987e5'/%3E%3Cpath d='M6 22 L13 15 L18 19 L26 9' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="logo">📈</span> Racing<span class="accent">Board</span></div>
+    <div class="spacer"></div>
+    <span class="pill"><span id="conn" class="dot"></span><span id="conn-label">connecting…</span></span>
+    <span id="clock" class="pill" style="border:none;background:none;padding:0"></span>
+    <button id="theme" class="icon-btn" title="Toggle theme">◐</button>
+  </div>
+
+  <div id="banner" class="banner">
+    <span>🎞️</span>
+    <span><b>Replay mode</b> — animating a captured sequence of real race data. Run the live version locally to poll Betfair + TAB in real time.
+      <a href="https://github.com/DanielTomaro13/RacingBoard#run-it-live" target="_blank" rel="noopener">How ›</a></span>
+  </div>
+
+  <section class="hero">
+    <div class="tile"><div class="label">Races tracked</div><div class="value" id="s-races">–</div><div class="codes" id="s-codes"></div></div>
+    <div class="tile"><div class="label">Biggest steam</div><div class="value" id="s-steam">–</div><div class="sub" id="s-steam-sub"></div></div>
+    <div class="tile"><div class="label">Betfair matched</div><div class="value" id="s-matched">–</div><div class="sub">across matched win markets</div></div>
+    <div class="tile"><div class="label">Next to jump</div><div class="value" id="s-next">–</div><div class="sub" id="s-next-sub"></div></div>
+  </section>
+
+  <main>
+    <div class="col left">
+      <div class="panel">
+        <header><h2>Market Movers</h2><small>pool-share shifts</small><span class="count" id="movers-count"></span></header>
+        <ul id="movers" class="movers scroll"></ul>
+      </div>
+      <div class="panel">
+        <header><h2>Races</h2><small>nearest to jump</small><span class="count" id="board-count"></span></header>
+        <div class="filters" id="code-filters">
+          <button data-code="ALL" class="active">All</button>
+          <button data-code="R"><i style="background:var(--code-R)"></i>Thoroughbred</button>
+          <button data-code="G"><i style="background:var(--code-G)"></i>Greyhound</button>
+          <button data-code="H"><i style="background:var(--code-H)"></i>Harness</button>
+        </div>
+        <ul id="board" class="board scroll" style="max-height:52vh"></ul>
+      </div>
+    </div>
+
+    <div class="col right">
+      <div id="detail" class="panel detail">
+        <div class="empty"><div class="big">🐎</div>Select a race to see where the money is going.</div>
+      </div>
+    </div>
+  </main>
+
+  <div id="tt"></div>
+  <footer>RacingBoard · tote pool share + Betfair weight of money · <a href="https://github.com/DanielTomaro13/RacingBoard" target="_blank" rel="noopener">source</a></footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

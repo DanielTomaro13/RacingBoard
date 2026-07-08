@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+httpx[http2]>=0.27,<1
+# Data layer reuses your local sportsdata-mcp engine (imported as a library),
+# which brings pydantic + pyyaml. Point SPORTSDATA_MCP_SRC at its src/ dir.
+pydantic>=2.5,<3
+pyyaml>=6.0,<7
