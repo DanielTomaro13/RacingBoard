@@ -19,6 +19,7 @@
     <span class="spacer"></span>
     <span class="pill"><span id="conn" class="dot"></span><b id="conn-label">CONNECTING</b></span>
     <span id="clock" class="clock"></span>
+    <button id="alerts" class="icon-btn" title="Alert on strong steam (✓✓✓+)">🔔</button>
     <button id="theme" class="icon-btn" title="Theme">◐</button>
   </div>
 
@@ -32,6 +33,11 @@
 
   <main>
     <div class="col left">
+      <section class="panel">
+        <header><h2>SCORECARD</h2><span class="sub">signal hit-rate vs result</span><span class="count" id="score-races"></span></header>
+        <div id="scores" class="scores"></div>
+      </section>
+
       <section class="panel">
         <header><h2>RACES</h2><span class="sub">nearest jump · live pick</span><span class="count" id="board-count"></span></header>
         <div class="filters" id="code-filters">

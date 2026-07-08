@@ -3,7 +3,7 @@
 (() => {
   const cfg = window.MF_CONFIG || {};
   const qs = new URLSearchParams(location.search);
-  const state = { board: [], movers: [], value: [], selected: null, expanded: null, details: {}, codeFilter: "ALL", mode: "connecting" };
+  const state = { board: [], movers: [], value: [], scores: null, selected: null, expanded: null, details: {}, codeFilter: "ALL", mode: "connecting" };
   const flash = {}; // `${key}:${num}` -> last share, for cell flashing
 
   const $ = (id) => document.getElementById(id);
@@ -39,12 +39,15 @@
       state.board = msg.board || [];
       state.movers = msg.movers || [];
       state.value = msg.value || [];
+      state.scores = msg.scores || null;
+      renderScores();
       // Drop cached detail for races that have left the board (bounds memory over a day).
       const liveKeys = new Set(state.board.map((r) => r.race_key));
       for (const k of Object.keys(state.details)) {
         if (!liveKeys.has(k) && k !== state.selected) delete state.details[k];
       }
       renderTop(); renderTape(); renderBoard(); renderSignals();
+      checkAlerts();
       if (!state.selected && state.board.length) {
         const withPick = state.movers[0] ? state.movers[0].race_key : state.board[0].race_key;
         select(withPick);
@@ -101,6 +104,26 @@
     $("s-matched").textContent = matched ? money(matched) : "–";
     const next = [...b].filter((r) => r.status === "OPEN").sort((a, z) => new Date(a.start_time) - new Date(z.start_time))[0] || b[0];
     $("s-next").textContent = next ? ttg(next.start_time) : "–";
+  }
+
+  // ---------- scorecard (signal hit-rate) ----------
+  function renderScores() {
+    const el = $("scores"); if (!el) return;
+    const s = state.scores;
+    if (!s || !s.races) { el.innerHTML = `<div class="noscore">grading as races resolve…</div>`; $("score-races").textContent = ""; return; }
+    $("score-races").textContent = s.races + " races";
+    const fav = s.favourite.win_pct;
+    const row = (label, d, cls) => {
+      if (!d || !d.n) return `<tr><td>${label}</td><td class="mut">–</td><td class="mut">–</td><td></td></tr>`;
+      const edge = (d.win_pct != null && fav != null) ? d.win_pct - fav : null;
+      return `<tr class="${cls}"><td>${label} <span class="sn">${d.n}</span></td><td>${d.win_pct != null ? d.win_pct + "%" : "–"}</td><td class="mut">${d.place_pct != null ? d.place_pct + "%" : "–"}</td><td class="${edge > 0 ? "up" : edge < 0 ? "down" : "mut"}">${edge != null ? (edge > 0 ? "+" : "") + edge.toFixed(0) : ""}</td></tr>`;
+    };
+    el.innerHTML = `<table class="scoretbl"><thead><tr><th></th><th>WIN</th><th>PLC</th><th>vs&nbsp;FAV</th></tr></thead><tbody>
+      ${row("PICK", s.pick, "")}
+      ${row('<span class="up">✓</span> CONF', s.confirmed, "")}
+      ${row('<span class="amberh">◆</span> VALUE', s.value, "")}
+      ${row("FAV", s.favourite, "mut")}
+    </tbody></table>`;
   }
 
   // ---------- ticker tape (money in) ----------
@@ -270,7 +293,7 @@
     return `
       <div class="grow ${r.direction === "firming" ? "firm" : ""} ${live ? "live" : ""} ${r.confirmed ? "confd" : ""} ${r.number === pickNum && !pos ? "isPick" : ""} ${expanded ? "exp" : ""} ${fl}" data-num="${r.number}">
         <span class="num">${pos ? `<span class="pos p${pos}">${pos}</span>` : `<span class="chev">${expanded ? "▾" : "▸"}</span>${r.number}`}</span>
-        <span class="nm">${tipped && tipped.has(r.number) ? '<span class="star">⭐</span>' : ""}${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}${r.confirmed ? `<span class="conf" title="${r.confirm} markets agree">${ticks(r.confirm)}</span>` : ""}${r.last5 ? `<span class="l5">${esc(r.last5)}</span>` : ""}</span>
+        <span class="nm">${tipped && tipped.has(r.number) ? '<span class="star">⭐</span>' : ""}${r.best_bet ? `<span class="bestbet" title="Sportsbet best bet — ${esc(r.best_bet)}">🎯</span>` : ""}${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}${r.confirmed ? `<span class="conf" title="${r.confirm} markets agree">${ticks(r.confirm)}</span>` : ""}</span>
         <span class="r share">${pct(share)}<span class="bar ${r.direction === "drifting" ? "dn" : r.direction === "firming" ? "up" : ""}" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
         <span class="r fair">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
@@ -294,12 +317,14 @@
     let info = "";
     if (isGrey) {
       info = opt("BOX", r.barrier) + opt("TRAINER", esc(r.trainer || "")) + opt("BEST TIME", esc(r.best_time || "")) +
-             opt("CAREER", esc(r.career || "")) + opt("RUN STYLE", esc(r.speed_band || "")) + opt("LAST 5", esc(r.last5 || ""));
+             opt("CAREER", esc(r.career || "")) + opt("RUN STYLE", esc(r.speed_band || "")) + opt("LAST 5", esc(r.last5 || "")) +
+             opt("🎯 BEST BET", esc(r.best_bet || ""));
     } else {
       info = opt(isHarness ? "DRIVER" : "JOCKEY", esc(r.jockey || "")) + opt("TRAINER", esc(r.trainer || "")) +
              opt("BARRIER", r.barrier) + opt(isHarness ? "MOBILE/HCP" : "WEIGHT", r.weight ? r.weight + "kg" : "") +
              opt("CAREER", esc(r.career || "")) + opt("RUN STYLE", esc(r.speed_band || "")) +
-             opt("LAST 5", esc(r.last5 || "")) + opt("FORM RTG", r.form_rating || "");
+             opt("LAST 5", esc(r.last5 || "")) + opt("FORM RTG", r.form_rating || "") +
+             opt("🎯 BEST BET", esc(r.best_bet || ""));
     }
 
     // market/odds — common to all codes
@@ -338,6 +363,51 @@
     ctx.beginPath(); pts.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
     ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
     ctx.beginPath(); ctx.arc(X(pts.length - 1), Y(pts[pts.length - 1]), 2, 0, 7); ctx.fillStyle = col; ctx.fill();
+  }
+
+  // ---------- alerts ----------
+  let alertsOn = false, audioCtx = null;
+  const alerted = new Set();
+  function beep() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination); o.type = "sine";
+      o.frequency.setValueAtTime(1046, audioCtx.currentTime);
+      o.frequency.setValueAtTime(1568, audioCtx.currentTime + 0.09);
+      g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.28);
+      o.start(); o.stop(audioCtx.currentTime + 0.3);
+    } catch {}
+  }
+  $("alerts").onclick = () => {
+    alertsOn = !alertsOn;
+    $("alerts").classList.toggle("on", alertsOn);
+    if (alertsOn) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+      if (window.Notification && Notification.permission === "default") Notification.requestPermission();
+      beep();  // confirm it's on (and unlock audio via the user gesture)
+      // don't fire for signals already on screen when enabling
+      state.movers.forEach((m) => { if ((m.confirm || 0) >= 3) alerted.add(m.race_key + ":" + m.number); });
+    }
+  };
+  function checkAlerts() {
+    if (!alertsOn) return;
+    for (const m of state.movers) {
+      if ((m.confirm || 0) < 3) continue;            // only strong multi-market steam
+      const k = m.race_key + ":" + m.number;
+      if (alerted.has(k)) continue;
+      alerted.add(k);
+      beep();
+      if (window.Notification && Notification.permission === "granted") {
+        new Notification(`▲ ${ticks(m.confirm)} ${m.runner}`, {
+          body: `${m.venue} R${m.race_no} · +${(m.share_delta * 100).toFixed(1)}pt across ${m.confirm} markets`,
+          silent: true,
+        });
+      }
+      break;  // at most one alert per update
+    }
   }
 
   // ---------- chrome ----------

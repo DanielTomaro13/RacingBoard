@@ -61,6 +61,10 @@ class Settings:
     # right now, vs cumulatively since we started watching.
     recent_window: float = float(os.environ.get("MF_RECENT_WINDOW", "90"))
 
+    # Where the signal scoreboard persists its running hit-rate across sessions.
+    scores_path: str = os.environ.get(
+        "MF_SCORES_PATH", os.path.join(os.path.expanduser("~"), ".racingboard", "scores.json"))
+
     # HTTP server.
     host: str = os.environ.get("MF_HOST", "127.0.0.1")
     # Honour a harness-assigned PORT (preview/hosting) before MF_PORT/default.

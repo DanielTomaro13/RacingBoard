@@ -74,6 +74,7 @@ class RunnerFlow:
     comment: str | None = None             # per-runner form comment (narrative)
     best_time: str | None = None           # greyhounds: best time over the trip
     career: str | None = None              # career record "starts: W-P" (all codes)
+    best_bet: str | None = None            # Sportsbet expert best-bet tipster, if any
 
     # Derived movement (filled by the store from history).
     share_open: float | None = None        # first observed pool share

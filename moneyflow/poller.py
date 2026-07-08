@@ -16,10 +16,12 @@ from datetime import datetime, timezone
 
 from .betfair import BetfairClient
 from .config import settings
+from .best_bets import BestBets
 from .betr_movers import BetrMovers
 from .corporate import CorporateSource
 from .engine import SportsDataEngine
 from .form import FormSource
+from .scorer import Scorer
 from .sources import (
     BetfairMatcher,
     apply_betfair_market,
@@ -41,6 +43,8 @@ class Poller:
         self.corporate = CorporateSource() if settings.enable_corporate else None
         self.form = FormSource()
         self.betr = BetrMovers() if settings.enable_corporate else None
+        self.best_bets = BestBets() if settings.enable_corporate else None
+        self.scorer = Scorer(settings.scores_path)
         self._active_keys: list[str] = []
         self._running = False
 
@@ -105,6 +109,8 @@ class Poller:
         # Refresh corporate-book indices (Sportsbet / Pointsbet) for the day.
         if self.corporate:
             await self.corporate.refresh_indices(self.engine, date)
+        if self.best_bets:
+            await self.best_bets.refresh(self.engine)
 
         # Drop races that are well past the jump to keep memory bounded.
         keep = {r.race_key for r in races}
@@ -148,7 +154,7 @@ class Poller:
         await asyncio.gather(*(self._poll_race(k) for k in keys))
         if self.broadcast:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers(), "value": self.store.value()})
+                                  "movers": self.store.movers(), "value": self.store.value(), "scores": self.scorer.stats()})
 
     async def _poll_race(self, race_key: str) -> None:
         st = self.store.races.get(race_key)
@@ -181,13 +187,16 @@ class Poller:
 
         if self.betr:
             self.betr.enrich(ref, snap)   # cached dict lookup — no API call here
+        if self.best_bets:
+            self.best_bets.enrich(ref, snap)
 
         finalize_snapshot(snap)
         self.store.add_snapshot(race_key, snap)
 
-        if self.broadcast:
-            detail = self.store.race_detail(race_key)
-            if detail:
+        detail = self.store.race_detail(race_key)
+        if detail:
+            self.scorer.observe(race_key, detail)   # grade signals as races resolve
+            if self.broadcast:
                 await self.broadcast({"type": "race", "race_key": race_key, "detail": detail})
 
     # ---- Betr movers loop (independent, slow, never blocks Betfair) ----
@@ -237,7 +246,7 @@ class Poller:
 
         if self.broadcast and updated:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers(), "value": self.store.value()})
+                                  "movers": self.store.movers(), "value": self.store.value(), "scores": self.scorer.stats()})
             for key in updated:
                 detail = self.store.race_detail(key)
                 if detail:

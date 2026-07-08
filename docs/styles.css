@@ -71,6 +71,8 @@ body {
 .clock { font-family: var(--mono); font-size: 13px; color: var(--amber); letter-spacing: .5px; }
 .icon-btn { width: 28px; height: 26px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink2); border-radius: 4px; cursor: pointer; }
 .icon-btn:hover { color: var(--ink); }
+.icon-btn.on { border-color: var(--amber); box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 25%, transparent); }
+.grow .nm .bestbet { font-size: 10px; margin-right: 1px; }
 
 /* ---------- banner ---------- */
 .banner { display: none; align-items: center; gap: 8px; padding: 6px 16px; font-size: 11px; color: var(--ink2);
@@ -78,6 +80,19 @@ body {
 .banner.show { display: flex; }
 .banner span:first-child { font-weight: 800; letter-spacing: 1px; color: var(--amber); }
 .banner a { color: var(--amber); text-decoration: none; margin-left: auto; }
+
+/* ---------- scorecard ---------- */
+.scores { padding: 4px 10px 8px; }
+.noscore { color: var(--muted); font-family: var(--mono); font-size: 11px; padding: 8px 2px; }
+.scoretbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.scoretbl th { font-size: 8.5px; letter-spacing: .5px; color: var(--muted); text-align: right; padding: 2px 4px; font-weight: 400; }
+.scoretbl th:first-child { text-align: left; }
+.scoretbl td { text-align: right; padding: 3px 4px; border-top: 1px solid var(--line); }
+.scoretbl td:first-child { text-align: left; color: var(--ink2); font-family: var(--sans); font-size: 11px; letter-spacing: .3px; }
+.scoretbl td .sn { color: var(--muted); font-size: 9px; }
+.scoretbl .mut { color: var(--muted); }
+.scoretbl .up { color: var(--up); font-weight: 700; }
+.scoretbl .down { color: var(--down); }
 
 /* ---------- ticker tape ---------- */
 .tape-wrap { display: flex; align-items: stretch; height: 27px; background: #060608; border-bottom: 1px solid var(--line2); }

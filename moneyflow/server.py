@@ -85,7 +85,7 @@ async def health() -> JSONResponse:
 
 @app.get("/api/board")
 async def api_board() -> JSONResponse:
-    return JSONResponse({"board": store.board(), "movers": store.movers(), "value": store.value()})
+    return JSONResponse({"board": store.board(), "movers": store.movers(), "value": store.value(), "scores": poller.scorer.stats()})
 
 
 @app.get("/api/race/{race_key:path}")
@@ -102,7 +102,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
     await hub.add(ws)
     # Send an immediate snapshot so a fresh client isn't blank until next tick.
     await ws.send_text(json.dumps(
-        {"type": "board", "board": store.board(), "movers": store.movers(), "value": store.value()},
+        {"type": "board", "board": store.board(), "movers": store.movers(), "value": store.value(), "scores": poller.scorer.stats()},
         default=str,
     ))
     try:

@@ -1,0 +1,111 @@
+"""
+Signal scoreboard — grades the tool's signals against actual results.
+
+As each race resolves, the runners it flagged just before the jump (the pick, the
+✓-confirmed steamers, the value bets) are graded against the finishing order, and
+a running win/place hit-rate accumulates — persisted across sessions. The market
+favourite is graded too as a baseline: a signal only "works" if it beats the fav.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+CATS = ["pick", "confirmed", "value", "favourite"]
+
+
+def _blank() -> dict:
+    return {"races": 0, **{c: {"n": 0, "won": 0, "placed": 0} for c in CATS}}
+
+
+class Scorer:
+    def __init__(self, path: str) -> None:
+        self.path = Path(path)
+        self.scores = _blank()
+        self._graded: set[str] = set()
+        self._pending: dict[str, dict] = {}
+        self._load()
+
+    # ---- persistence ----
+    def _load(self) -> None:
+        try:
+            d = json.loads(self.path.read_text())
+            loaded = d.get("scores")
+            if isinstance(loaded, dict) and "races" in loaded:
+                self.scores = loaded
+            self._graded = set(d.get("graded", []))
+        except Exception:
+            pass
+
+    def _save(self) -> None:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps({"scores": self.scores, "graded": list(self._graded)}))
+        except Exception:
+            pass
+
+    # ---- observe / grade ----
+    def observe(self, race_key: str, detail: dict[str, Any]) -> None:
+        """Called with each race_detail. Captures pre-jump signals while OPEN and
+        grades once the race resolves (idempotent per race)."""
+        status = detail.get("status")
+        results = detail.get("results")
+        if status == "RESULTED" and results:
+            if race_key in self._graded:
+                return
+            sig = self._pending.get(race_key) or self._extract(detail)
+            self._grade(sig, results)
+            self._graded.add(race_key)
+            self._pending.pop(race_key, None)
+            self._save()
+        elif status == "OPEN":
+            self._pending[race_key] = self._extract(detail)
+
+    def _extract(self, detail: dict[str, Any]) -> dict:
+        runners = detail.get("runners", [])
+        active = [r for r in runners if not r.get("scratched")]
+        pick = detail.get("pick")
+        return {
+            "pick": pick.get("number") if pick else None,
+            "confirmed": [r["number"] for r in active if r.get("confirmed")],
+            "value": [r["number"] for r in active if (r.get("value_pct") or 0) > 0],
+            "fav": active[0]["number"] if active else None,  # runners are share-sorted
+        }
+
+    def _grade(self, sig: dict, results: list[int]) -> None:
+        winner = results[0]
+        placed = set(results[:3])
+        self.scores["races"] += 1
+
+        def rec(cat: str, num: int | None) -> None:
+            if num is None:
+                return
+            s = self.scores[cat]
+            s["n"] += 1
+            if num == winner:
+                s["won"] += 1
+            if num in placed:
+                s["placed"] += 1
+
+        rec("pick", sig["pick"])
+        rec("favourite", sig["fav"])
+        for n in set(sig["confirmed"]):
+            rec("confirmed", n)
+        for n in set(sig["value"]):
+            rec("value", n)
+
+    # ---- view ----
+    def stats(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"races": self.scores["races"]}
+        for c in CATS:
+            s = self.scores[c]
+            out[c] = {
+                "n": s["n"],
+                "won": s["won"],
+                "placed": s["placed"],
+                "win_pct": round(100 * s["won"] / s["n"], 1) if s["n"] else None,
+                "place_pct": round(100 * s["placed"] / s["n"], 1) if s["n"] else None,
+            }
+        return out

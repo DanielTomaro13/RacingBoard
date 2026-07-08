@@ -9,9 +9,11 @@ in)**, gives a **recommended pick per race** that updates live, and shows a
 > confirmation** (how many of tote · Betfair · Betr agree it's shortening) · **⚡ live momentum** (moving
 > now) · fair price (de-vigged Betfair·tote) · value vs best book ·
 > Sportsbet/Pointsbet/Betfair prices · click-to-expand **form** (comment, jockey,
-> barrier, best time…) · tipster picks · **results** once run. Scrolling "money-in"
-> tape, a merged money/value list, and a per-race pick. Only shortening runners show
-> as movers — drifters are ignored on purpose. (Ladbrokes/Neds and Dabble aren't
+> barrier, best time…) · tipster picks + 🎯 Sportsbet expert best-bets · **results**
+> once run. A **signal scorecard** grades the pick / ✓ confirmed / value bets vs the
+> result (win/place % vs the favourite baseline, persisted across sessions), and a
+> 🔔 **alert** fires on strong multi-market steam. Scrolling "money-in" tape, a merged
+> money/value list, and a per-race pick. Only shortening runners show as movers. (Ladbrokes/Neds and Dabble aren't
 > wired: Entain's public racecard 404s without auth, Dabble's per-race fixture
 > matching is too heavy for fast polling.)
 
