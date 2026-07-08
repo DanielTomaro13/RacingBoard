@@ -117,7 +117,7 @@ class Poller:
         await asyncio.gather(*(self._poll_race(k) for k in keys))
         if self.broadcast:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers()})
+                                  "movers": self.store.movers(), "value": self.store.value()})
 
     async def _poll_race(self, race_key: str) -> None:
         st = self.store.races.get(race_key)
@@ -188,7 +188,7 @@ class Poller:
 
         if self.broadcast and updated:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers()})
+                                  "movers": self.store.movers(), "value": self.store.value()})
             for key in updated:
                 detail = self.store.race_detail(key)
                 if detail:

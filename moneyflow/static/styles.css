@@ -143,6 +143,9 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .frow .d { color: var(--up); font-weight: 700; font-size: 12px; text-align: right; }
 .frow .v { font-size: 10px; text-align: right; width: 42px; }
 .frow .v.pos { color: var(--up); } .frow .v.neg { color: var(--muted); }
+.panel > header h2.amberh { color: var(--amber); }
+.frow .amber { color: var(--amber); }
+.frow .v.amber .bk { color: var(--amber-dim); font-size: 9px; }
 
 /* ---------- detail ---------- */
 .detail { min-height: 70vh; }

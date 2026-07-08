@@ -3,7 +3,7 @@
 (() => {
   const cfg = window.MF_CONFIG || {};
   const qs = new URLSearchParams(location.search);
-  const state = { board: [], movers: [], selected: null, details: {}, codeFilter: "ALL", mode: "connecting" };
+  const state = { board: [], movers: [], value: [], selected: null, details: {}, codeFilter: "ALL", mode: "connecting" };
   const flash = {}; // `${key}:${num}` -> last share, for cell flashing
 
   const $ = (id) => document.getElementById(id);
@@ -29,7 +29,8 @@
     if (msg.type === "board") {
       state.board = msg.board || [];
       state.movers = msg.movers || [];
-      renderTop(); renderTape(); renderBoard(); renderFirmers();
+      state.value = msg.value || [];
+      renderTop(); renderTape(); renderBoard(); renderFirmers(); renderValue();
       if (!state.selected && state.board.length) {
         const withPick = state.movers[0] ? state.movers[0].race_key : state.board[0].race_key;
         select(withPick);
@@ -60,7 +61,7 @@
     window.__sub = (k) => { const f = frames[i % frames.length]; if (f.races && f.races[k]) apply({ type: "race", race_key: k, detail: f.races[k] }); };
     const tick = () => {
       const f = frames[i % frames.length];
-      apply({ type: "board", board: f.board, movers: f.movers });
+      apply({ type: "board", board: f.board, movers: f.movers, value: f.value || [] });
       if (state.selected && f.races && f.races[state.selected]) apply({ type: "race", race_key: state.selected, detail: f.races[state.selected] });
       i++;
     };
@@ -145,6 +146,21 @@
     }).join("");
     el.querySelectorAll(".frow[data-key]").forEach((x) => x.onclick = () => select(x.dataset.key));
     wireTips(el);
+  }
+
+  // ---------- value (best price > fair) ----------
+  function renderValue() {
+    const el = $("value");
+    if (!el) return;
+    if (!state.value.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no value on offer…</span><span></span><span></span></div>`; return; }
+    el.innerHTML = state.value.map((m) => `
+      <div class="frow val-row" data-key="${esc(m.race_key)}">
+        <span class="ar amber">◆</span>
+        <span class="who"><div class="n">${esc(m.runner)}</div><div class="c"><span class="code ${m.code}">${m.code}</span> ${esc(m.venue)} R${m.race_no}${m.direction === "firming" ? ' <span class="up">▲</span>' : ""}</div></span>
+        <span class="d amber">+${m.value_pct.toFixed(0)}%</span>
+        <span class="v amber">${m.corp_best ? m.corp_best.toFixed(2) : ""} <span class="bk">${BOOK[m.corp_best_book] || ""}</span></span>
+      </div>`).join("");
+    el.querySelectorAll(".frow[data-key]").forEach((x) => x.onclick = () => select(x.dataset.key));
   }
 
   // ---------- detail ----------

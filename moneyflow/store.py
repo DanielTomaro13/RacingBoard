@@ -165,6 +165,37 @@ class Store:
         out.sort(key=lambda x: x["share_delta"], reverse=True)
         return out[:limit]
 
+    def value(self, limit: int = 24) -> list[dict[str, Any]]:
+        """Runners whose best book price is longer than fair (overlays), across
+        all races — ranked by edge. Same idea as the firmers list, for value."""
+        out = []
+        for st in self.races.values():
+            snap = st.latest
+            if not snap:
+                continue
+            for r in snap.runners:
+                if r.scratched or not r.value_pct or r.value_pct <= 0:
+                    continue
+                out.append(
+                    {
+                        "race_key": st.ref.race_key,
+                        "venue": st.ref.venue,
+                        "code": st.ref.code,
+                        "race_no": st.ref.race_no,
+                        "start_time": st.ref.start_time,
+                        "runner": r.name,
+                        "number": r.number,
+                        "value_pct": r.value_pct,
+                        "corp_best": r.corp_best,
+                        "corp_best_book": r.corp_best_book,
+                        "fair_price": r.fair_price,
+                        "direction": r.direction,
+                        "share_delta": r.share_delta,
+                    }
+                )
+        out.sort(key=lambda x: x["value_pct"], reverse=True)
+        return out[:limit]
+
     def race_detail(self, race_key: str) -> dict[str, Any] | None:
         st = self.races.get(race_key)
         if st is None or st.latest is None:
