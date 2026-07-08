@@ -62,6 +62,7 @@ class RunnerFlow:
     # Derived movement (filled by the store from history).
     share_open: float | None = None        # first observed pool share
     share_delta: float | None = None       # current - open (pool share pts)
+    share_delta_recent: float | None = None  # change over the recent window (live momentum)
     price_move_pct: float | None = None     # fixed/tote drift since open (%; <0 = firming)
     direction: str = "flat"                # firming | drifting | flat
 

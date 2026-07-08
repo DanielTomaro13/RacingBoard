@@ -27,9 +27,24 @@ class RaceState:
         self.latest = snap
 
     def _fill_movement(self, snap: RaceSnapshot) -> None:
-        """Compare each runner to its first observation to derive firm/drift."""
+        """Compare each runner to its first observation to derive firm/drift,
+        plus a recent-window delta to capture live momentum (moving NOW)."""
         first = self.history[0] if self.history else None
         opens = {r.number: r for r in first.runners} if first else {}
+
+        # Reference snapshot ~recent_window seconds ago, for live momentum.
+        recent_ref = None
+        if self.history:
+            target = snap.ts - settings.recent_window
+            for h in self.history:            # oldest → newest
+                if h.ts <= target:
+                    recent_ref = h
+                else:
+                    break
+            if recent_ref is None:
+                recent_ref = self.history[0]
+        recents = {r.number: r for r in recent_ref.runners} if recent_ref else {}
+
         for r in snap.runners:
             o = opens.get(r.number)
             # pool share movement
@@ -40,6 +55,10 @@ class RaceState:
             elif r.tote_pool_share is not None:
                 r.share_open = r.tote_pool_share
                 r.share_delta = 0.0
+            # recent-window momentum (how fast it's moving right now)
+            rr = recents.get(r.number)
+            if rr is not None and rr.tote_pool_share is not None and r.tote_pool_share is not None:
+                r.share_delta_recent = r.tote_pool_share - rr.tote_pool_share
             # price movement (prefer tote, fall back to fixed): <0 == firming
             cur = r.tote_win or r.fixed_win
             base = None
@@ -156,13 +175,16 @@ class Store:
                         "direction": r.direction,
                         "share": r.tote_pool_share,
                         "share_delta": r.share_delta,
+                        "share_delta_recent": r.share_delta_recent,
+                        "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
                         "price_move_pct": r.price_move_pct,
                         "fair_price": r.fair_price,
                         "corp_best": r.corp_best,
                         "value_pct": r.value_pct,
                     }
                 )
-        out.sort(key=lambda x: x["share_delta"], reverse=True)
+        # Live movers (moving now) first, then by cumulative move.
+        out.sort(key=lambda x: (x["live"], x.get("share_delta_recent") or 0, x["share_delta"]), reverse=True)
         return out[:limit]
 
     def value(self, limit: int = 24) -> list[dict[str, Any]]:
@@ -288,6 +310,8 @@ def _pick(active: list[Any]) -> dict[str, Any] | None:
         "corp_best_book": r.corp_best_book,
         "value_pct": r.value_pct,
         "price_move_pct": r.price_move_pct,
+        "share_delta_recent": r.share_delta_recent,
+        "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
     })
     return brief
 

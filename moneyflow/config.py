@@ -53,6 +53,9 @@ class Settings:
 
     # Time-series retention per race (number of snapshots kept in memory).
     history_len: int = int(os.environ.get("MF_HISTORY_LEN", "300"))
+    # Window (seconds) for "recent" momentum — how fast a runner is shortening
+    # right now, vs cumulatively since we started watching.
+    recent_window: float = float(os.environ.get("MF_RECENT_WINDOW", "90"))
 
     # HTTP server.
     host: str = os.environ.get("MF_HOST", "127.0.0.1")

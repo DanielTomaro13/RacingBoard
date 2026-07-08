@@ -219,6 +219,11 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 @keyframes flashUp { from { background: color-mix(in srgb, var(--up) 40%, transparent); } to { background: transparent; } }
 @keyframes flashDn { from { background: color-mix(in srgb, var(--down) 35%, transparent); } to { background: transparent; } }
 .fUp { animation: flashUp .9s ease-out; } .fDn { animation: flashDn .9s ease-out; }
+/* live steam — moving right now */
+.live-mark { color: var(--up); animation: livepulse 1.15s ease-in-out infinite; display: inline-block; }
+@keyframes livepulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(1.25); } }
+.grow.live { box-shadow: inset 2px 0 0 var(--up), 0 0 0 1px color-mix(in srgb, var(--up) 22%, transparent); }
+.frow.live .n::after { content: " ⚡"; color: var(--up); }
 
 .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 12px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); font-family: var(--mono); }
 .legend b { color: var(--up); }

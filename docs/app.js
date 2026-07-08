@@ -96,7 +96,7 @@
     el.style.animation = "";
     const items = state.movers.map((m) => `
       <div class="t" data-key="${esc(m.race_key)}">
-        <span class="d">▲</span><span class="r">${esc(m.runner)}</span>
+        <span class="d">${m.live ? "⚡" : "▲"}</span><span class="r">${esc(m.runner)}</span>
         <span class="v">${esc(m.venue)} R${m.race_no}</span>
         <span class="d">+${(m.share_delta * 100).toFixed(1)}pt</span>
         ${m.corp_best ? `<span class="v">$${m.corp_best.toFixed(2)}</span>` : ""}
@@ -115,7 +115,7 @@
       const p = r.pick;
       const soon = (new Date(r.start_time) - Date.now()) < 5 * 60000;
       const pickTxt = p
-        ? `<span class="pn">#${p.number} ${esc(p.name)}</span>${p.direction === "firming" ? ` <span class="pd">▲${((p.share_delta || 0) * 100).toFixed(0)}pt</span>` : ` <span class="flatc">${esc(p.confidence)}</span>`}`
+        ? `<span class="pn">#${p.number} ${esc(p.name)}</span>${p.direction === "firming" ? ` <span class="pd">${p.live ? "⚡" : "▲"}${((p.share_delta || 0) * 100).toFixed(0)}pt</span>` : ` <span class="flatc">${esc(p.confidence)}</span>`}`
         : "";
       return `
       <div class="brow ${r.race_key === state.selected ? "sel" : ""}" data-key="${esc(r.race_key)}">
@@ -139,7 +139,7 @@
     const keyOf = (m) => m.race_key + ":" + m.number;
     state.movers.forEach((m) => map.set(keyOf(m), {
       race_key: m.race_key, code: m.code, venue: m.venue, race_no: m.race_no, runner: m.runner,
-      firm: m.share_delta, value: null, best: null, book: null,
+      firm: m.share_delta, live: m.live, recent: m.share_delta_recent, value: null, best: null, book: null,
     }));
     state.value.forEach((m) => {
       const e = map.get(keyOf(m)) || {
@@ -150,15 +150,15 @@
     });
     const rows = [...map.values()];
     if (!rows.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no signals yet…</span><span></span><span></span></div>`; $("signals-count").textContent = ""; return; }
-    // both first, then firmers by Δ, then value-only by %
-    const tier = (e) => (e.firm && e.value ? 2 : e.firm ? 1 : 0);
-    rows.sort((a, b) => tier(b) - tier(a) || ((b.firm || 0) - (a.firm || 0)) || ((b.value || 0) - (a.value || 0)));
+    // live steam first, then both-signals, then firmers by Δ, then value-only by %
+    const tier = (e) => (e.live ? 3 : e.firm && e.value ? 2 : e.firm ? 1 : 0);
+    rows.sort((a, b) => tier(b) - tier(a) || ((b.recent || 0) - (a.recent || 0)) || ((b.firm || 0) - (a.firm || 0)) || ((b.value || 0) - (a.value || 0)));
     $("signals-count").textContent = rows.length;
     el.innerHTML = rows.map((e) => {
       const both = e.firm && e.value;
       return `
-      <div class="frow ${both ? "both" : ""}" data-key="${esc(e.race_key)}">
-        <span class="ar ${e.firm ? "up" : "amber"}">${e.firm ? "▲" : "◆"}</span>
+      <div class="frow ${both ? "both" : ""} ${e.live ? "live" : ""}" data-key="${esc(e.race_key)}">
+        <span class="ar ${e.firm ? "up" : "amber"}">${e.live ? '<span class="live-mark">⚡</span>' : e.firm ? "▲" : "◆"}</span>
         <span class="who"><div class="n">${esc(e.runner)}</div><div class="c"><span class="code ${e.code}">${e.code}</span> ${esc(e.venue)} R${e.race_no}</div></span>
         <span class="d up">${e.firm ? "+" + (e.firm * 100).toFixed(1) : ""}</span>
         <span class="v amber">${e.value != null ? "+" + e.value.toFixed(0) + "%" : ""}</span>
@@ -203,7 +203,7 @@
         <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
         ${runners.map((r) => grow(r, maxShare, pickNum)).join("")}
       </div>
-      <div class="legend"><b>▲ money in</b> = tote pool share rising / price shortening · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value (better than fair) · <b>BF IN*</b> = est. Betfair $ (Δmatched split by which prices shortened, since open)</div>`;
+      <div class="legend"><b><span class="live-mark">⚡</span> live</b> = shortening right now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value (better than fair) · <b>BF IN*</b> = est. Betfair $ since open</div>`;
 
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
     wireTips(el);
@@ -216,7 +216,7 @@
       : `<span class="conf">${esc(p.confidence)}</span> · market favourite`;
     return `
       <div class="pickcard">
-        <span class="tag">PICK</span>
+        <span class="tag">${p.live ? "⚡ PICK" : "PICK"}</span>
         <div class="who"><div class="n"><span class="sn">#${p.number}</span>${esc(p.name)}</div><div class="why">${why}</div></div>
         <div class="nums">
           <div class="c"><div class="k">SHARE</div><div class="val">${pct(p.share)}%</div></div>
@@ -235,10 +235,11 @@
     const barW = (share / maxShare) * 100;
     const dv = r.share_delta != null ? r.share_delta * 100 : null;
     const val = r.value_pct;
+    const live = r.direction === "firming" && (r.share_delta_recent || 0) > 0.006;
     return `
-      <div class="grow ${r.direction === "firming" ? "firm" : ""} ${r.number === pickNum ? "isPick" : ""} ${fl}" data-tip="runner" data-json='${esc(JSON.stringify(r))}'>
+      <div class="grow ${r.direction === "firming" ? "firm" : ""} ${live ? "live" : ""} ${r.number === pickNum ? "isPick" : ""} ${fl}" data-tip="runner" data-json='${esc(JSON.stringify(r))}'>
         <span class="num">${r.number}</span>
-        <span class="nm">${esc(r.name)} ${r.direction === "firming" ? '<span class="up">▲</span>' : ""}</span>
+        <span class="nm">${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}</span>
         <span class="r share">${pct(share)}<span class="bar ${r.direction === "drifting" ? "dn" : r.direction === "firming" ? "up" : ""}" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
         <span class="r fair">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
