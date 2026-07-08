@@ -176,7 +176,7 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 
 /* runner grid (watchlist) — runner sized to names, TREND takes the rest */
 .grid { width: 100%; }
-.ghead, .grow { display: grid; grid-template-columns: 20px 156px 50px 42px 46px 62px 38px 40px 54px minmax(130px, 1fr); gap: 7px; align-items: center; }
+.ghead, .grow { display: grid; grid-template-columns: 20px 150px 46px 38px 44px 58px 34px 34px 50px 56px minmax(110px, 1fr); gap: 7px; align-items: center; }
 .ghead { padding: 6px 12px; font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--line2); position: sticky; top: 0; background: var(--panel); z-index: 1; }
 .ghead .r { text-align: right; }
 .grow { padding: 8px 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
@@ -195,6 +195,8 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .grow .best .bk { font-size: 8px; color: var(--muted); }
 .grow .val.pos { color: var(--up); } .grow .val.neg { color: var(--muted); }
 .grow .bf { color: var(--ink2); }
+.grow .bfin { color: var(--up); font-weight: 700; }
+.grow .bfin.z { color: var(--muted); font-weight: 400; }
 /* weight of $ — split back(green)/lay(red) pressure bar */
 .womcell { display: flex; justify-content: flex-end; }
 .womb { width: 48px; height: 8px; border-radius: 2px; overflow: hidden; background: var(--down-dim); display: flex; }

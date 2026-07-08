@@ -176,6 +176,7 @@ class Store:
             key=lambda r: (r.tote_pool_share or r.bf_implied or 0),
             reverse=True,
         )
+        bf_flow = _betfair_flow(st)   # estimated Betfair $ per runner since open
         return {
             "ref": st.ref.to_dict(),
             "status": snap.status,
@@ -187,10 +188,44 @@ class Store:
                 {
                     **r.to_dict(),
                     "share_spark": st.sparkline(r.number, "tote_pool_share"),
+                    "bf_money_est": bf_flow.get(r.number),
                 }
                 for r in runners
             ],
         }
+
+
+def _betfair_flow(st: "RaceState") -> dict[int, float]:
+    """Estimate where the Betfair money has gone, per runner, since we started
+    watching this market.
+
+    Betfair's public feed hides per-runner matched volume — but it gives the
+    market-level total matched and every runner's price. So: the extra money
+    matched since open (ΔM = matched_now − matched_open) must have gone to the
+    runners whose price SHORTENED, in proportion to how much their implied
+    probability rose. It's an estimate (total-matched counts churn/both sides,
+    and assumes moves are money-driven), but it's directionally honest.
+    """
+    latest = st.latest
+    first = st.history[0] if st.history else None
+    if latest is None or first is None:
+        return {}
+    m_now, m_open = latest.bf_total_matched, first.bf_total_matched
+    if not m_now or not m_open:
+        return {}
+    delta_matched = m_now - m_open
+    if delta_matched <= 0:
+        return {}
+    opens = {r.number: r.bf_implied for r in first.runners if r.bf_implied}
+    gains: dict[int, float] = {}
+    for r in latest.runners:
+        o, n = opens.get(r.number), r.bf_implied
+        if o and n and n > o:          # implied prob rose == price shortened
+            gains[r.number] = n - o
+    total_gain = sum(gains.values())
+    if total_gain <= 0:
+        return {}
+    return {num: delta_matched * g / total_gain for num, g in gains.items()}
 
 
 def _pick(active: list[Any]) -> dict[str, Any] | None:

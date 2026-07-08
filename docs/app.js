@@ -9,6 +9,11 @@
   const $ = (id) => document.getElementById(id);
   const pct = (x) => (x == null ? "–" : (x * 100).toFixed(1));
   const money = (x) => (x == null ? null : "$" + Math.round(x).toLocaleString());
+  const moneyShort = (x) => {
+    if (!x) return null;
+    if (x >= 1000) return "$" + (x / 1000).toFixed(x >= 10000 ? 0 : 1) + "k";
+    return "$" + Math.round(x);
+  };
   const esc = (s) => (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const BOOK = { pointsbet: "PB", sportsbet: "SB", betfair: "BF", tab: "TAB" };
   function ttg(iso) {
@@ -175,10 +180,10 @@
       </div>
       ${p ? pickCard(p) : ""}
       <div class="grid">
-        <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">TREND</span></div>
+        <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
         ${runners.map((r) => grow(r, maxShare, pickNum)).join("")}
       </div>
-      <div class="legend"><b>▲ money in</b> = tote pool share rising / price shortening · FAIR = de-vigged Betfair·tote · VAL = best book vs fair · cells flash on change</div>`;
+      <div class="legend"><b>▲ money in</b> = tote pool share rising / price shortening · FAIR = de-vigged Betfair·tote · VAL = best book vs fair · <b>BF IN*</b> = est. Betfair $ (Δmatched split by which prices shortened, since open)</div>`;
 
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
     wireTips(el);
@@ -221,6 +226,7 @@
         <span class="r val ${val > 0 ? "pos" : "neg"}">${val != null ? (val > 0 ? "+" : "") + val.toFixed(0) : "·"}</span>
         <span class="r bf">${r.bf_back ? r.bf_back.toFixed(1) : "–"}</span>
         <span class="womcell">${r.bf_wom != null ? `<span class="womb" title="back vs lay pressure"><b style="width:${(r.bf_wom * 100).toFixed(0)}%"></b></span>` : '<span class="flatc">·</span>'}</span>
+        <span class="r bfin ${r.bf_money_est ? "" : "z"}">${moneyShort(r.bf_money_est) || "·"}</span>
         <canvas class="spark" height="26" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
       </div>`;
   }
@@ -272,6 +278,7 @@
         <div class="tt-r"><span>VALUE</span><b class="${j.value_pct > 0 ? "up" : ""}">${j.value_pct != null ? (j.value_pct > 0 ? "+" : "") + j.value_pct + "%" : "–"}</b></div>
         ${j.bf_back != null ? `<div class="tt-r"><span>BETFAIR B/L</span><b>${j.bf_back} / ${j.bf_lay ?? "–"}</b></div>` : ""}
         ${j.bf_wom != null ? `<div class="tt-r"><span>WEIGHT OF $</span><b>${(j.bf_wom * 100).toFixed(0)}% back</b></div>` : ""}
+        ${j.bf_money_est ? `<div class="tt-r"><span>EST BF IN (since open)</span><b class="up">${moneyShort(j.bf_money_est)}</b></div>` : ""}
         <div class="tt-r"><span>TOTE / TAB FIX</span><b>${j.tote_win ? j.tote_win.toFixed(2) : "–"} / ${j.fixed_win ? j.fixed_win.toFixed(2) : "–"}</b></div>
         ${rows ? `<div class="tt-sep">FIXED ODDS</div>${rows}` : ""}`;
     }
