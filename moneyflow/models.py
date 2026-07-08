@@ -59,6 +59,9 @@ class RunnerFlow:
     bf_wom: float | None = None            # weight of money, back$/(back$+lay$) [0..1]
     bf_implied: float | None = None        # implied prob from mid price [0..1]
 
+    # Independent fixed-odds confirmation (Betr book-wide movers).
+    betr_short: bool = False               # Betr flags this runner's price shortening
+
     # Static form / runner info (from TAB — doesn't change during the race).
     last5: str | None = None               # last-5 finishing positions, e.g. "809x8"
     jockey: str | None = None

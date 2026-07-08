@@ -33,6 +33,8 @@ class Settings:
     betfair_interval: float = float(os.environ.get("MF_BETFAIR_INTERVAL", "3"))
     # Corporate books rate-limit, so price them on a slower cadence than the tote.
     corp_interval: float = float(os.environ.get("MF_CORP_INTERVAL", "20"))
+    # Betr book-wide movers refresh (one call, its own loop — never blocks Betfair).
+    betr_interval: float = float(os.environ.get("MF_BETR_INTERVAL", "15"))
 
     # How far ahead to track races for the board (minutes to jump).
     horizon_minutes: int = int(os.environ.get("MF_HORIZON_MINUTES", "60"))

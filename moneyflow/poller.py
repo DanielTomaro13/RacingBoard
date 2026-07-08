@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from .betfair import BetfairClient
 from .config import settings
+from .betr_movers import BetrMovers
 from .corporate import CorporateSource
 from .engine import SportsDataEngine
 from .form import FormSource
@@ -39,6 +40,7 @@ class Poller:
         self.matcher = BetfairMatcher(self.betfair) if self.betfair else None
         self.corporate = CorporateSource() if settings.enable_corporate else None
         self.form = FormSource()
+        self.betr = BetrMovers() if settings.enable_corporate else None
         self._active_keys: list[str] = []
         self._running = False
 
@@ -52,6 +54,8 @@ class Poller:
         loops = [self._discovery_loop(), self._price_loop()]
         if self.betfair:
             loops.append(self._betfair_loop())
+        if self.betr:
+            loops.append(self._betr_loop())
         await asyncio.gather(*loops)
 
     async def stop(self) -> None:
@@ -155,6 +159,9 @@ class Poller:
         except Exception:
             pass
 
+        if self.betr:
+            self.betr.enrich(ref, snap)   # cached dict lookup — no API call here
+
         finalize_snapshot(snap)
         self.store.add_snapshot(race_key, snap)
 
@@ -162,6 +169,16 @@ class Poller:
             detail = self.store.race_detail(race_key)
             if detail:
                 await self.broadcast({"type": "race", "race_key": race_key, "detail": detail})
+
+    # ---- Betr movers loop (independent, slow, never blocks Betfair) ----
+
+    async def _betr_loop(self) -> None:
+        while self._running:
+            try:
+                await self.betr.refresh(self.engine)
+            except Exception as exc:
+                print(f"[betr] error: {exc}")
+            await asyncio.sleep(settings.betr_interval)
 
     # ---- fast Betfair loop ----
 

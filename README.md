@@ -5,8 +5,8 @@ Greyhound & Harness — it surfaces the runners **shortening in price (money com
 in)**, gives a **recommended pick per race** that updates live, and shows a
 **fair price** (de-vigged) with the **value edge** of the best available book price.
 
-> Per runner: tote pool share + how much it's shortening · **✓✓ cross-source
-> confirmation** (tote firming *and* Betfair backing) · **⚡ live momentum** (moving
+> Per runner: tote pool share + how much it's shortening · **✓✓/✓✓✓ cross-source
+> confirmation** (how many of tote · Betfair · Betr agree it's shortening) · **⚡ live momentum** (moving
 > now) · fair price (de-vigged Betfair·tote) · value vs best book ·
 > Sportsbet/Pointsbet/Betfair prices · click-to-expand **form** (comment, jockey,
 > barrier, best time…) · tipster picks · **results** once run. Scrolling "money-in"

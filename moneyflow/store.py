@@ -178,7 +178,7 @@ class Store:
                         "share_delta": r.share_delta,
                         "share_delta_recent": r.share_delta_recent,
                         "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
-                        "confirmed": _confirmed(r),
+                        "confirm": _confirm_count(r), "confirmed": _confirmed(r),
                         "price_move_pct": r.price_move_pct,
                         "fair_price": r.fair_price,
                         "corp_best": r.corp_best,
@@ -247,18 +247,29 @@ class Store:
                     **r.to_dict(),
                     "share_spark": st.sparkline(r.number, "tote_pool_share"),
                     "bf_money_est": bf_flow.get(r.number),
-                    "confirmed": _confirmed(r),
+                    "confirm": _confirm_count(r), "confirmed": _confirmed(r),
                 }
                 for r in runners
             ],
         }
 
 
+def _confirm_count(r: Any) -> int:
+    """How many independent markets agree this runner is shortening: the tote (pool
+    share rising), the Betfair exchange (weight of money >= 55% backing) and Betr
+    fixed odds (book-wide mover). More agreeing markets = realer steam."""
+    c = 0
+    if r.direction == "firming":
+        c += 1
+    if r.bf_wom is not None and r.bf_wom >= 0.55:
+        c += 1
+    if r.betr_short:
+        c += 1
+    return c
+
+
 def _confirmed(r: Any) -> bool:
-    """True when the tote firming is confirmed by the Betfair exchange — the pool
-    share is rising AND the exchange order book is leaning to back it (weight of
-    money >= 55%). Two independent markets agreeing = a real move, not tote noise."""
-    return r.direction == "firming" and r.bf_wom is not None and r.bf_wom >= 0.55
+    return _confirm_count(r) >= 2
 
 
 def _betfair_flow(st: "RaceState") -> dict[int, float]:
@@ -330,7 +341,7 @@ def _pick(active: list[Any]) -> dict[str, Any] | None:
         "price_move_pct": r.price_move_pct,
         "share_delta_recent": r.share_delta_recent,
         "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
-        "confirmed": _confirmed(r),
+        "confirm": _confirm_count(r), "confirmed": _confirmed(r),
     })
     return brief
 

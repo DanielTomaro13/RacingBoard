@@ -16,6 +16,7 @@
   };
   const esc = (s) => (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const BOOK = { pointsbet: "PB", sportsbet: "SB", betfair: "BF", tab: "TAB" };
+  const ticks = (n) => "✓".repeat(n || 2);  // confirmation marks (2 or 3 markets)
   function ttg(iso) {
     const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
     if (isNaN(m)) return "";
@@ -117,7 +118,7 @@
       const pickTxt = r.result_winner
         ? `<span class="won">🏁 WON #${r.result_winner}</span>`
         : p
-        ? `<span class="pn">${p.confirmed ? "✓✓ " : ""}#${p.number} ${esc(p.name)}</span>${p.direction === "firming" ? ` <span class="pd">${p.live ? "⚡" : "▲"}${((p.share_delta || 0) * 100).toFixed(0)}pt</span>` : ` <span class="flatc">${esc(p.confidence)}</span>`}`
+        ? `<span class="pn">${p.confirmed ? ticks(p.confirm) + " " : ""}#${p.number} ${esc(p.name)}</span>${p.direction === "firming" ? ` <span class="pd">${p.live ? "⚡" : "▲"}${((p.share_delta || 0) * 100).toFixed(0)}pt</span>` : ` <span class="flatc">${esc(p.confidence)}</span>`}`
         : "";
       return `
       <div class="brow ${r.race_key === state.selected ? "sel" : ""}" data-key="${esc(r.race_key)}">
@@ -141,7 +142,7 @@
     const keyOf = (m) => m.race_key + ":" + m.number;
     state.movers.forEach((m) => map.set(keyOf(m), {
       race_key: m.race_key, code: m.code, venue: m.venue, race_no: m.race_no, runner: m.runner,
-      firm: m.share_delta, live: m.live, recent: m.share_delta_recent, confirmed: m.confirmed, value: null, best: null, book: null,
+      firm: m.share_delta, live: m.live, recent: m.share_delta_recent, confirmed: m.confirmed, confirm: m.confirm, value: null, best: null, book: null,
     }));
     state.value.forEach((m) => {
       const e = map.get(keyOf(m)) || {
@@ -161,7 +162,7 @@
       return `
       <div class="frow ${both ? "both" : ""} ${e.live ? "live" : ""} ${e.confirmed ? "confd" : ""}" data-key="${esc(e.race_key)}">
         <span class="ar ${e.firm ? "up" : "amber"}">${e.live ? '<span class="live-mark">⚡</span>' : e.firm ? "▲" : "◆"}</span>
-        <span class="who"><div class="n">${esc(e.runner)}${e.confirmed ? ' <span class="conf">✓✓</span>' : ""}</div><div class="c"><span class="code ${e.code}">${e.code}</span> ${esc(e.venue)} R${e.race_no}</div></span>
+        <span class="who"><div class="n">${esc(e.runner)}${e.confirmed ? ` <span class="conf">${ticks(e.confirm)}</span>` : ""}</div><div class="c"><span class="code ${e.code}">${e.code}</span> ${esc(e.venue)} R${e.race_no}</div></span>
         <span class="d up">${e.firm ? "+" + (e.firm * 100).toFixed(1) : ""}</span>
         <span class="v amber">${e.value != null ? "+" + e.value.toFixed(0) + "%" : ""}</span>
       </div>`;
@@ -211,7 +212,7 @@
         <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
         ${runners.map((r) => grow(r, maxShare, pickNum, tipped, ref.code, placing)).join("")}
       </div>
-      <div class="legend"><b class="up">✓✓ confirmed</b> = tote + Betfair agree · <b><span class="live-mark">⚡</span> live</b> = shortening now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value · <b>BF IN*</b> = est. Betfair $ since open</div>`;
+      <div class="legend"><b class="up">✓ per market</b> agreeing (tote · Betfair · Betr) · <b><span class="live-mark">⚡</span> live</b> = shortening now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value · <b>BF IN*</b> = est. Betfair $ since open</div>`;
 
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
     el.querySelectorAll(".grow[data-num]").forEach((x) => x.onclick = () => {
@@ -228,7 +229,7 @@
       : `<span class="conf">${esc(p.confidence)}</span> · market favourite`;
     return `
       <div class="pickcard ${p.confirmed ? "confd" : ""}">
-        <span class="tag">${p.confirmed ? "✓✓ PICK" : p.live ? "⚡ PICK" : "PICK"}</span>
+        <span class="tag">${p.confirmed ? ticks(p.confirm) + " PICK" : p.live ? "⚡ PICK" : "PICK"}</span>
         <div class="who"><div class="n"><span class="sn">#${p.number}</span>${esc(p.name)}</div><div class="why">${why}</div></div>
         <div class="nums">
           <div class="c"><div class="k">SHARE</div><div class="val">${pct(p.share)}%</div></div>
@@ -253,7 +254,7 @@
     return `
       <div class="grow ${r.direction === "firming" ? "firm" : ""} ${live ? "live" : ""} ${r.confirmed ? "confd" : ""} ${r.number === pickNum && !pos ? "isPick" : ""} ${expanded ? "exp" : ""} ${fl}" data-num="${r.number}">
         <span class="num">${pos ? `<span class="pos p${pos}">${pos}</span>` : `<span class="chev">${expanded ? "▾" : "▸"}</span>${r.number}`}</span>
-        <span class="nm">${tipped && tipped.has(r.number) ? '<span class="star">⭐</span>' : ""}${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}${r.confirmed ? '<span class="conf" title="tote + Betfair agree">✓✓</span>' : ""}${r.last5 ? `<span class="l5">${esc(r.last5)}</span>` : ""}</span>
+        <span class="nm">${tipped && tipped.has(r.number) ? '<span class="star">⭐</span>' : ""}${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}${r.confirmed ? `<span class="conf" title="${r.confirm} markets agree">${ticks(r.confirm)}</span>` : ""}${r.last5 ? `<span class="l5">${esc(r.last5)}</span>` : ""}</span>
         <span class="r share">${pct(share)}<span class="bar ${r.direction === "drifting" ? "dn" : r.direction === "firming" ? "up" : ""}" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
         <span class="r fair">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
@@ -292,7 +293,8 @@
       opt("WEIGHT OF $", r.bf_wom != null ? (r.bf_wom * 100).toFixed(0) + "% back" : "") +
       cell("FAIR / VALUE", (r.fair_price ? r.fair_price.toFixed(2) : "–") + (r.value_pct != null ? ` / ${r.value_pct > 0 ? "+" : ""}${r.value_pct}%` : "")) +
       cell("BOOKS", books) +
-      opt("EST BF IN", moneyShort(r.bf_money_est));
+      opt("EST BF IN", moneyShort(r.bf_money_est)) +
+      (r.betr_short ? cell("BETR", '<span class="up">shortening ▲</span>') : "");
 
     return `
       <div class="growexp">
