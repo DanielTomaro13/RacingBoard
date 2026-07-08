@@ -47,6 +47,11 @@ class RunnerFlow:
     corp_best: float | None = None
     corp_best_book: str | None = None
 
+    # Fair price (de-vigged from the sharpest market — Betfair, else tote) and the
+    # value edge of the best available book price vs that fair price (%; >0 = value).
+    fair_price: float | None = None
+    value_pct: float | None = None
+
     # Betfair exchange (horses/greys).
     bf_back: float | None = None
     bf_lay: float | None = None

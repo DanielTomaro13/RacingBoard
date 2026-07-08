@@ -1,14 +1,16 @@
 # RacingBoard 📈
 
-Real-time board showing **where the money's going** across Thoroughbred, Greyhound
-& Harness racing — a live movers leaderboard plus a per-race drill-in with tote
-**pool share**, Betfair **weight of money**, who's **firming vs drifting**, and the
-**best fixed odds** across Sportsbet & Pointsbet.
+A **Bloomberg-style live terminal** for racing money flow across Thoroughbred,
+Greyhound & Harness — it surfaces the runners **shortening in price (money coming
+in)**, gives a **recommended pick per race** that updates live, and shows a
+**fair price** (de-vigged) with the **value edge** of the best available book price.
 
-> Signals per runner: TAB tote pool share · TAB fixed · Betfair back/lay + weight
-> of money · Sportsbet & Pointsbet win price (best-of highlighted). Ladbrokes/Neds
-> and Dabble aren't included — Entain's public racecard 404s without auth, and
-> Dabble's per-race fixture matching is too heavy for fast polling.
+> Per runner: tote pool share + how much it's shortening · fair price (de-vigged
+> Betfair·tote) · value vs best book · Sportsbet/Pointsbet/Betfair prices. Scrolling
+> "money-in" tape, firmers panel, and a per-race pick. Only shortening runners are
+> shown as movers — drifters are ignored on purpose. (Ladbrokes/Neds and Dabble
+> aren't wired: Entain's public racecard 404s without auth, Dabble's per-race
+> fixture matching is too heavy for fast polling.)
 
 ### 🔴 [Live demo](https://danieltomaro13.github.io/RacingBoard/)
 

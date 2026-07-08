@@ -150,11 +150,12 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
             if rf.number in implied:
                 rf.tote_pool_share = implied[rf.number] / total
 
-    # Race-level win pool if TAB is reporting one yet.
+    # Race-level win pool. TAB reports it as `poolTotal` on the Win product; it
+    # populates well before the jump (not `grossPoolAmount`, which stays null).
     win_pool = None
     for p in data.get("pools") or []:
-        if p.get("wageringProduct") == "Win" and p.get("grossPoolAmount"):
-            win_pool = p.get("grossPoolAmount")
+        if p.get("wageringProduct") == "Win" and p.get("poolTotal"):
+            win_pool = p.get("poolTotal")
             break
 
     status = "OPEN"
@@ -287,3 +288,46 @@ async def betfair_enrich(
                     if back_p and lay_p:
                         mid = (back_p + lay_p) / 2
                         rf.bf_implied = 1.0 / mid if mid else None
+
+
+def finalize_snapshot(snapshot: RaceSnapshot) -> None:
+    """Compute a fair price per runner and the value edge of the best book price.
+
+    Fair probabilities come from the sharpest market available: proportional
+    de-vig of Betfair mid prices when the race has real exchange coverage, else
+    the tote pool share (pari-mutuel is already overround-free). Method borrowed
+    from sportsdata-agents' quant/devig: fair_prob = (1/odds) / Σ(1/odds).
+    Value edge = (best_book_price × fair_prob − 1) × 100, guarded against the
+    longshot/data-artifact regime.
+    """
+    active = [r for r in snapshot.runners if not r.scratched]
+    if len(active) < 2:
+        return
+
+    fair_prob: dict[int, float] = {}
+
+    # Prefer Betfair mids when they cover most of the field (sharpest fair).
+    mids = {r.number: (r.bf_back + r.bf_lay) / 2
+            for r in active if r.bf_back and r.bf_lay}
+    if len(mids) >= max(4, int(0.6 * len(active))):
+        inv_total = sum(1.0 / m for m in mids.values())
+        if inv_total > 0:
+            for num, m in mids.items():
+                fair_prob[num] = (1.0 / m) / inv_total
+
+    # Tote pool share fills any runner Betfair didn't cover (and tote-only races).
+    for r in active:
+        if r.number not in fair_prob and r.tote_pool_share:
+            fair_prob[r.number] = r.tote_pool_share
+
+    for r in active:
+        fp = fair_prob.get(r.number)
+        if not fp or fp <= 0:
+            continue
+        r.fair_price = round(1.0 / fp, 2)
+        # Value only where the fair estimate is trustworthy (not deep longshots)
+        # and the edge is plausible (a huge one is a stale/scratched-price mirage).
+        if r.corp_best and r.fair_price <= 20:
+            edge = (r.corp_best * fp - 1.0) * 100.0
+            if -60 < edge < 60:
+                r.value_pct = round(edge, 1)

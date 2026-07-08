@@ -22,6 +22,7 @@ from .sources import (
     BetfairMatcher,
     betfair_enrich,
     discover_races,
+    finalize_snapshot,
     tab_snapshot,
 )
 from .store import Store
@@ -138,6 +139,7 @@ class Poller:
             except Exception:
                 pass
 
+        finalize_snapshot(snap)
         self.store.add_snapshot(race_key, snap)
 
         if self.broadcast:

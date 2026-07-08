@@ -104,18 +104,12 @@ class Store:
         rows = []
         for st in self.races.values():
             snap = st.latest
-            top = None
-            top_mover = None
+            fav = pick = None
             if snap:
                 active = [r for r in snap.runners if not r.scratched]
                 if active:
-                    top = max(
-                        active,
-                        key=lambda r: (r.tote_pool_share or r.bf_implied or 0),
-                    )
-                    movers = [r for r in active if r.share_delta is not None]
-                    if movers:
-                        top_mover = max(movers, key=lambda r: abs(r.share_delta))
+                    fav = max(active, key=lambda r: (r.tote_pool_share or r.bf_implied or 0))
+                    pick = _pick(active)
             rows.append(
                 {
                     "race_key": st.ref.race_key,
@@ -129,22 +123,26 @@ class Store:
                     "has_betfair": bool(st.ref.betfair_market_id),
                     "bf_total_matched": snap.bf_total_matched if snap else None,
                     "tote_win_pool": snap.tote_win_pool if snap else None,
-                    "favourite": _runner_brief(top),
-                    "top_mover": _runner_brief(top_mover),
+                    "favourite": _runner_brief(fav),
+                    "pick": pick,
                 }
             )
         rows.sort(key=lambda r: r["start_time"])
         return rows
 
-    def movers(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Biggest pool-share shifts across every tracked race."""
+    def movers(self, limit: int = 24) -> list[dict[str, Any]]:
+        """Runners whose price is SHORTENING (money coming in) across all races.
+
+        Drifters are intentionally excluded — we only care where money is going.
+        """
         out = []
         for st in self.races.values():
             snap = st.latest
             if not snap:
                 continue
             for r in snap.runners:
-                if r.scratched or r.share_delta is None or abs(r.share_delta) < 0.005:
+                # firming == pool share rising == price shortening == money in.
+                if r.scratched or r.direction != "firming" or (r.share_delta or 0) < 0.006:
                     continue
                 out.append(
                     {
@@ -159,9 +157,12 @@ class Store:
                         "share": r.tote_pool_share,
                         "share_delta": r.share_delta,
                         "price_move_pct": r.price_move_pct,
+                        "fair_price": r.fair_price,
+                        "corp_best": r.corp_best,
+                        "value_pct": r.value_pct,
                     }
                 )
-        out.sort(key=lambda x: abs(x["share_delta"]), reverse=True)
+        out.sort(key=lambda x: x["share_delta"], reverse=True)
         return out[:limit]
 
     def race_detail(self, race_key: str) -> dict[str, Any] | None:
@@ -169,6 +170,7 @@ class Store:
         if st is None or st.latest is None:
             return None
         snap = st.latest
+        active = [r for r in snap.runners if not r.scratched]
         runners = sorted(
             snap.runners,
             key=lambda r: (r.tote_pool_share or r.bf_implied or 0),
@@ -180,6 +182,7 @@ class Store:
             "ts": snap.ts,
             "bf_total_matched": snap.bf_total_matched,
             "tote_win_pool": snap.tote_win_pool,
+            "pick": _pick(active),
             "runners": [
                 {
                     **r.to_dict(),
@@ -188,6 +191,39 @@ class Store:
                 for r in runners
             ],
         }
+
+
+def _pick(active: list[Any]) -> dict[str, Any] | None:
+    """Recommended runner: the one with the most money coming in (biggest pool-
+    share gain = shortening hardest). Falls back to the market favourite, clearly
+    flagged, before any real move has happened."""
+    if not active:
+        return None
+    movers = [r for r in active if (r.share_delta or 0) > 0.008]
+    if movers:
+        r = max(movers, key=lambda r: r.share_delta)
+        if r.share_delta > 0.05:
+            conf = "STRONG"
+        elif r.share_delta > 0.02:
+            conf = "FIRMING"
+        else:
+            conf = "EDGING IN"
+        reason = "money in"
+    else:
+        r = max(active, key=lambda r: (r.tote_pool_share or 0))
+        conf = "NO MOVER YET"
+        reason = "market fav"
+    brief = _runner_brief(r) or {}
+    brief.update({
+        "reason": reason,
+        "confidence": conf,
+        "fair_price": r.fair_price,
+        "corp_best": r.corp_best,
+        "corp_best_book": r.corp_best_book,
+        "value_pct": r.value_pct,
+        "price_move_pct": r.price_move_pct,
+    })
+    return brief
 
 
 def _runner_brief(r: Any) -> dict[str, Any] | None:
