@@ -35,9 +35,10 @@ class Settings:
     corp_interval: float = float(os.environ.get("MF_CORP_INTERVAL", "20"))
 
     # How far ahead to track races for the board (minutes to jump).
-    horizon_minutes: int = int(os.environ.get("MF_HORIZON_MINUTES", "45"))
-    # Max races polled at full cadence at once (protects the upstreams).
-    max_active_races: int = int(os.environ.get("MF_MAX_ACTIVE_RACES", "12"))
+    horizon_minutes: int = int(os.environ.get("MF_HORIZON_MINUTES", "60"))
+    # Max races polled at full cadence at once (protects the upstreams). The board
+    # lists every race in the horizon; the nearest this-many get live money data.
+    max_active_races: int = int(os.environ.get("MF_MAX_ACTIVE_RACES", "24"))
 
     # TAB jurisdiction for the meetings spine.
     jurisdiction: str = os.environ.get("MF_JURISDICTION", "NSW")
