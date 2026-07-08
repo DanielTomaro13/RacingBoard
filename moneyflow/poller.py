@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from .betfair import BetfairClient
 from .config import settings
+from .corporate import CorporateSource
 from .engine import SportsDataEngine
 from .sources import (
     BetfairMatcher,
@@ -33,6 +34,7 @@ class Poller:
         self.engine = SportsDataEngine()
         self.betfair = BetfairClient() if settings.enable_betfair else None
         self.matcher = BetfairMatcher(self.betfair) if self.betfair else None
+        self.corporate = CorporateSource() if settings.enable_corporate else None
         self._active_keys: list[str] = []
         self._running = False
 
@@ -82,9 +84,15 @@ class Poller:
             except Exception as exc:
                 print(f"[discovery] betfair index error: {exc}")
 
+        # Refresh corporate-book indices (Sportsbet / Pointsbet) for the day.
+        if self.corporate:
+            await self.corporate.refresh_indices(self.engine, date)
+
         # Drop races that are well past the jump to keep memory bounded.
         keep = {r.race_key for r in races}
         self.store.prune(keep)
+        if self.corporate:
+            self.corporate.prune(keep)
         print(f"[discovery] {len(races)} races tracked, {len(active)} active @ {time.strftime('%H:%M:%S')}")
 
     # ---- prices ----
@@ -121,6 +129,12 @@ class Poller:
         if self.betfair and ref.betfair_market_id:
             try:
                 await betfair_enrich(self.betfair, ref.betfair_market_id, snap)
+            except Exception:
+                pass
+
+        if self.corporate:
+            try:
+                await self.corporate.enrich(self.engine, ref, snap)
             except Exception:
                 pass
 

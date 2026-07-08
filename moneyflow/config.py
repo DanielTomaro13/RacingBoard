@@ -28,6 +28,8 @@ class Settings:
     # Board (all upcoming races) is discovered less often than prices are polled.
     discovery_interval: float = float(os.environ.get("MF_DISCOVERY_INTERVAL", "60"))
     price_interval: float = float(os.environ.get("MF_PRICE_INTERVAL", "8"))
+    # Corporate books rate-limit, so price them on a slower cadence than the tote.
+    corp_interval: float = float(os.environ.get("MF_CORP_INTERVAL", "20"))
 
     # How far ahead to track races for the board (minutes to jump).
     horizon_minutes: int = int(os.environ.get("MF_HORIZON_MINUTES", "45"))

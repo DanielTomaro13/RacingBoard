@@ -41,6 +41,12 @@ class RunnerFlow:
     # TAB fixed odds.
     fixed_win: float | None = None
 
+    # Corporate fixed odds (Sportsbet, Pointsbet, …) — book -> win price, plus
+    # the best (highest) price on offer across books.
+    corp: dict[str, float] = field(default_factory=dict)
+    corp_best: float | None = None
+    corp_best_book: str | None = None
+
     # Betfair exchange (horses/greys).
     bf_back: float | None = None
     bf_lay: float | None = None

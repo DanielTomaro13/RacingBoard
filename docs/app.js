@@ -195,11 +195,13 @@
         <span class="firm">▲ firming (money in)</span>
         <span class="drift">▼ drifting (money out)</span>
         <span><span class="sw" style="background:var(--firm)"></span> WoM = Betfair back vs lay pressure</span>
+        <span><b style="color:var(--code-G)">$</b> best fixed odds (Sportsbet · Pointsbet)</span>
       </div>`;
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
     wire(el.querySelector(".runners"), true);
   }
 
+  const BOOK_ABBR = { pointsbet: "PB", sportsbet: "SB", betfair: "BF", tab: "TAB" };
   function runnerRow(r, maxShare) {
     const share = r.tote_pool_share || 0;
     const w = Math.max(2, (share / maxShare) * 100);
@@ -208,6 +210,9 @@
     const wom = r.bf_wom;
     const tote = r.tote_win ? r.tote_win.toFixed(2) : "–";
     const fixed = r.fixed_win ? r.fixed_win.toFixed(2) : "–";
+    const best = r.corp_best
+      ? `<div class="best">$${r.corp_best.toFixed(2)} <span class="bk">${BOOK_ABBR[r.corp_best_book] || r.corp_best_book}</span></div>`
+      : "";
     return `
       <div class="runner" data-tip="runner" data-json='${esc(JSON.stringify(r))}'>
         <span class="num">${r.number}</span>
@@ -219,6 +224,7 @@
         <canvas class="spark" width="116" height="34" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
         <span class="odds">
           <div class="move">${moveTxt || "<span class='flatc'>▪</span>"}</div>
+          ${best}
           <div class="px">tote ${tote} · fix ${fixed}</div>
         </span>
       </div>`;
@@ -263,12 +269,19 @@
         <div class="tt-r"><span>Price</span><b>${j.price_move_pct != null ? j.price_move_pct.toFixed(0) + "%" : "–"}</b></div>
         <div class="tt-r"><span>Race</span><b>${esc(j.venue)} R${j.race_no}</b></div>`;
     } else {
+      const corp = j.corp || {};
+      const corpRows = Object.keys(corp).length
+        ? `<div class="tt-sep">Fixed odds</div>` + Object.entries(corp)
+            .sort((a, z) => z[1] - a[1])
+            .map(([bk, px]) => `<div class="tt-r"><span>${BOOK_ABBR[bk] || bk}${bk === j.corp_best_book ? " ★" : ""}</span><b>${px.toFixed(2)}</b></div>`).join("")
+        : "";
       html = `<div class="tt-t">${esc(j.name)}</div>
         <div class="tt-r"><span>Tote pool share</span><b>${pct(j.tote_pool_share)}</b></div>
-        <div class="tt-r"><span>Tote / fixed</span><b>${j.tote_win ? j.tote_win.toFixed(2) : "–"} / ${j.fixed_win ? j.fixed_win.toFixed(2) : "–"}</b></div>
+        <div class="tt-r"><span>Tote / TAB fixed</span><b>${j.tote_win ? j.tote_win.toFixed(2) : "–"} / ${j.fixed_win ? j.fixed_win.toFixed(2) : "–"}</b></div>
         ${j.bf_back != null ? `<div class="tt-r"><span>Betfair back / lay</span><b>${j.bf_back ?? "–"} / ${j.bf_lay ?? "–"}</b></div>` : ""}
         ${j.bf_wom != null ? `<div class="tt-r"><span>Weight of money</span><b>${(j.bf_wom * 100).toFixed(0)}% back</b></div>` : ""}
-        <div class="tt-r"><span>Direction</span><b class="${dirClass(j.direction)}">${arrow(j.direction)} ${j.direction}</b></div>`;
+        <div class="tt-r"><span>Direction</span><b class="${dirClass(j.direction)}">${arrow(j.direction)} ${j.direction}</b></div>
+        ${corpRows}`;
     }
     tt.innerHTML = html; tt.classList.add("show");
     const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
