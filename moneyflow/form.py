@@ -16,20 +16,24 @@ from .models import RaceRef, RaceSnapshot
 
 class FormSource:
     def __init__(self) -> None:
-        self._cache: dict[str, dict[int, str]] = {}  # race_key -> {number: comment}
+        # race_key -> {number: {comment, best_time, career}}
+        self._cache: dict[str, dict[int, dict]] = {}
 
     async def enrich(self, engine: SportsDataEngine, race: RaceRef, snapshot: RaceSnapshot) -> None:
-        comments = self._cache.get(race.race_key)
-        if comments is None:
-            comments = await self._fetch(engine, race)
-            self._cache[race.race_key] = comments   # cache even if empty (one attempt)
-        if comments:
+        form = self._cache.get(race.race_key)
+        if form is None:
+            form = await self._fetch(engine, race)
+            self._cache[race.race_key] = form   # cache even if empty (one attempt)
+        if form:
             for r in snapshot.runners:
-                c = comments.get(r.number)
-                if c:
-                    r.comment = c
+                info = form.get(r.number)
+                if not info:
+                    continue
+                r.comment = info.get("comment") or r.comment
+                r.best_time = info.get("best_time")
+                r.career = info.get("career")
 
-    async def _fetch(self, engine: SportsDataEngine, race: RaceRef) -> dict[int, str]:
+    async def _fetch(self, engine: SportsDataEngine, race: RaceRef) -> dict[int, dict]:
         data = await engine.try_call(
             "tab_racing_race_form",
             date=race.date,
@@ -38,14 +42,25 @@ class FormSource:
             raceNumber=race.race_no,
             jurisdiction=settings.jurisdiction,
         )
-        out: dict[int, str] = {}
+        out: dict[int, dict] = {}
         if not data:
             return out
         for f in data.get("form", []) or []:
             num = f.get("runnerNumber")
-            comment = f.get("formComment")
-            if num is not None and comment:
-                out[int(num)] = comment.strip()
+            if num is None:
+                continue
+            info: dict = {}
+            if f.get("formComment"):
+                info["comment"] = f["formComment"].strip()
+            bt = f.get("bestTime")
+            if bt and str(bt) not in ("0", "0.00", ""):
+                info["best_time"] = str(bt)
+            overall = ((f.get("runnerStarts") or {}).get("startSummaries") or {}).get("overall") or {}
+            starts = overall.get("numberOfStarts")
+            if starts:
+                info["career"] = f"{starts}: {overall.get('numberOfWins', 0)}-{overall.get('numberOfPlacings', 0)}"
+            if info:
+                out[int(num)] = info
         return out
 
     def prune(self, keep_keys: set[str]) -> None:

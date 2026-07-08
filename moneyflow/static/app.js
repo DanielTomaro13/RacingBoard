@@ -204,7 +204,7 @@
       ${p ? pickCard(p) : ""}
       <div class="grid">
         <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
-        ${runners.map((r) => grow(r, maxShare, pickNum, tipped)).join("")}
+        ${runners.map((r) => grow(r, maxShare, pickNum, tipped, ref.code)).join("")}
       </div>
       <div class="legend"><b><span class="live-mark">⚡</span> live</b> = shortening right now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value (better than fair) · <b>BF IN*</b> = est. Betfair $ since open</div>`;
 
@@ -233,7 +233,7 @@
       </div>`;
   }
 
-  function grow(r, maxShare, pickNum, tipped) {
+  function grow(r, maxShare, pickNum, tipped, code) {
     const key = state.selected + ":" + r.number;
     const share = r.tote_pool_share || 0;
     const prev = flash[key];
@@ -257,31 +257,42 @@
         <span class="womcell">${r.bf_wom != null ? `<span class="womb" title="back vs lay pressure"><b style="width:${(r.bf_wom * 100).toFixed(0)}%"></b></span>` : '<span class="flatc">·</span>'}</span>
         <span class="r bfin ${r.bf_money_est ? "" : "z"}">${moneyShort(r.bf_money_est) || "·"}</span>
         <canvas class="spark" height="30" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
-      </div>${expanded ? expandBlock(r) : ""}`;
+      </div>${expanded ? expandBlock(r, code) : ""}`;
   }
 
-  function expandBlock(r) {
+  function expandBlock(r, code) {
+    const isGrey = code === "G", isHarness = code === "H";
     const corp = r.corp || {};
     const books = Object.entries(corp).sort((a, z) => z[1] - a[1]).map(([b, px]) => `${BOOK[b] || b} ${px.toFixed(2)}`).join(" · ") || "–";
     const cell = (label, val) => `<div class="exp-cell"><label>${label}</label><b>${val}</b></div>`;
+    const opt = (label, val) => (val == null || val === "" ? "" : cell(label, val));
+
+    // runner info — tailored per code
+    let info = "";
+    if (isGrey) {
+      info = opt("BOX", r.barrier) + opt("TRAINER", esc(r.trainer || "")) + opt("BEST TIME", esc(r.best_time || "")) +
+             opt("CAREER", esc(r.career || "")) + opt("RUN STYLE", esc(r.speed_band || "")) + opt("LAST 5", esc(r.last5 || ""));
+    } else {
+      info = opt(isHarness ? "DRIVER" : "JOCKEY", esc(r.jockey || "")) + opt("TRAINER", esc(r.trainer || "")) +
+             opt("BARRIER", r.barrier) + opt(isHarness ? "MOBILE/HCP" : "WEIGHT", r.weight ? r.weight + "kg" : "") +
+             opt("CAREER", esc(r.career || "")) + opt("RUN STYLE", esc(r.speed_band || "")) +
+             opt("LAST 5", esc(r.last5 || "")) + opt("FORM RTG", r.form_rating || "");
+    }
+
+    // market/odds — common to all codes
+    const odds =
+      cell("TOTE / TAB FIX", (r.tote_win ? r.tote_win.toFixed(2) : "–") + " / " + (r.fixed_win ? r.fixed_win.toFixed(2) : "–")) +
+      cell("BETFAIR B / L", (r.bf_back ?? "–") + " / " + (r.bf_lay ?? "–")) +
+      opt("WEIGHT OF $", r.bf_wom != null ? (r.bf_wom * 100).toFixed(0) + "% back" : "") +
+      cell("FAIR / VALUE", (r.fair_price ? r.fair_price.toFixed(2) : "–") + (r.value_pct != null ? ` / ${r.value_pct > 0 ? "+" : ""}${r.value_pct}%` : "")) +
+      cell("BOOKS", books) +
+      opt("EST BF IN", moneyShort(r.bf_money_est));
+
     return `
       <div class="growexp">
-        <div class="exp-comment ${r.comment ? "" : "muted"}">${r.comment ? esc(r.comment) : "No form comment available."}</div>
-        <div class="exp-grid">
-          ${cell("JOCKEY", esc(r.jockey || "–"))}
-          ${cell("TRAINER", esc(r.trainer || "–"))}
-          ${cell("BARRIER", r.barrier ?? "–")}
-          ${cell("WEIGHT", r.weight ? r.weight + "kg" : "–")}
-          ${cell("RUN STYLE", esc(r.speed_band || "–"))}
-          ${cell("LAST 5", esc(r.last5 || "–"))}
-          ${cell("FORM RTG", r.form_rating ?? "–")}
-          ${cell("TOTE / TAB FIX", (r.tote_win ? r.tote_win.toFixed(2) : "–") + " / " + (r.fixed_win ? r.fixed_win.toFixed(2) : "–"))}
-          ${cell("BETFAIR B / L", (r.bf_back ?? "–") + " / " + (r.bf_lay ?? "–"))}
-          ${cell("WEIGHT OF $", r.bf_wom != null ? (r.bf_wom * 100).toFixed(0) + "% back" : "–")}
-          ${cell("FAIR / VALUE", (r.fair_price ? r.fair_price.toFixed(2) : "–") + (r.value_pct != null ? ` / ${r.value_pct > 0 ? "+" : ""}${r.value_pct}%` : ""))}
-          ${cell("BOOKS", books)}
-          ${cell("EST BF IN", moneyShort(r.bf_money_est) || "–")}
-        </div>
+        ${r.comment ? `<div class="exp-comment">${esc(r.comment)}</div>` : ""}
+        <div class="exp-sec">RUNNER</div><div class="exp-grid">${info}</div>
+        <div class="exp-sec">MARKET</div><div class="exp-grid">${odds}</div>
       </div>`;
   }
 

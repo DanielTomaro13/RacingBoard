@@ -196,6 +196,8 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 @keyframes expand { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 .exp-comment { font-family: var(--sans); font-style: italic; color: var(--ink); font-size: 13px; line-height: 1.55; margin-bottom: 12px; max-width: 920px; }
 .exp-comment.muted { color: var(--muted); font-style: normal; }
+.exp-sec { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--muted); margin: 4px 0 6px; }
+.exp-sec + .exp-grid { margin-bottom: 12px; }
 .exp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 9px 18px; max-width: 920px; }
 .exp-cell label { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--muted); margin-bottom: 1px; }
 .exp-cell b { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }

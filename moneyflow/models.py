@@ -68,6 +68,8 @@ class RunnerFlow:
     speed_band: str | None = None          # early-speed style, e.g. "LEADER"
     form_rating: float | None = None       # TAB form rating
     comment: str | None = None             # per-runner form comment (narrative)
+    best_time: str | None = None           # greyhounds: best time over the trip
+    career: str | None = None              # career record "starts: W-P" (all codes)
 
     # Derived movement (filled by the store from history).
     share_open: float | None = None        # first observed pool share
