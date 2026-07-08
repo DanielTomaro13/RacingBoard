@@ -261,33 +261,38 @@ def _best(levels: list[dict[str, Any]] | None) -> tuple[float | None, float | No
     return top.get("price"), top.get("size")
 
 
+def apply_betfair_market(snapshot: RaceSnapshot, mkt: dict[str, Any]) -> None:
+    """Apply one Betfair marketNode's prices onto a snapshot's runners (in place)."""
+    state = mkt.get("state", {}) or {}
+    snapshot.bf_total_matched = state.get("totalMatched")
+    by_name = {_norm_runner(r.name): r for r in snapshot.runners}
+    for run in mkt.get("runners", []):
+        name = (run.get("description", {}) or {}).get("runnerName", "")
+        rf = by_name.get(_norm_runner(name))
+        if rf is None:
+            continue
+        exch = run.get("exchange", {}) or {}
+        back_p, back_s = _best(exch.get("availableToBack"))
+        lay_p, lay_s = _best(exch.get("availableToLay"))
+        rf.bf_back = back_p
+        rf.bf_lay = lay_p
+        rf.bf_last = (run.get("state", {}) or {}).get("lastPriceTraded")
+        if back_s and lay_s:
+            rf.bf_wom = back_s / (back_s + lay_s)
+        if back_p and lay_p:
+            mid = (back_p + lay_p) / 2
+            rf.bf_implied = 1.0 / mid if mid else None
+
+
 async def betfair_enrich(
     client: BetfairClient, market_id: str, snapshot: RaceSnapshot
 ) -> None:
     """Overlay Betfair WoM / matched / price onto a snapshot's runners (in place)."""
     blocks = await client.market_prices([market_id])
-    by_name = {_norm_runner(r.name): r for r in snapshot.runners}
     for et in blocks:
         for ev in et.get("eventNodes", []):
             for mkt in ev.get("marketNodes", []):
-                state = mkt.get("state", {}) or {}
-                snapshot.bf_total_matched = state.get("totalMatched")
-                for run in mkt.get("runners", []):
-                    name = (run.get("description", {}) or {}).get("runnerName", "")
-                    rf = by_name.get(_norm_runner(name))
-                    if rf is None:
-                        continue
-                    exch = run.get("exchange", {}) or {}
-                    back_p, back_s = _best(exch.get("availableToBack"))
-                    lay_p, lay_s = _best(exch.get("availableToLay"))
-                    rf.bf_back = back_p
-                    rf.bf_lay = lay_p
-                    rf.bf_last = (run.get("state", {}) or {}).get("lastPriceTraded")
-                    if back_s and lay_s:
-                        rf.bf_wom = back_s / (back_s + lay_s)
-                    if back_p and lay_p:
-                        mid = (back_p + lay_p) / 2
-                        rf.bf_implied = 1.0 / mid if mid else None
+                apply_betfair_market(snapshot, mkt)
 
 
 def finalize_snapshot(snapshot: RaceSnapshot) -> None:

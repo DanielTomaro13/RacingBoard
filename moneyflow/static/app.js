@@ -175,7 +175,7 @@
       </div>
       ${p ? pickCard(p) : ""}
       <div class="grid">
-        <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">TREND</span></div>
+        <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">TREND</span></div>
         ${runners.map((r) => grow(r, maxShare, pickNum)).join("")}
       </div>
       <div class="legend"><b>▲ money in</b> = tote pool share rising / price shortening · FAIR = de-vigged Betfair·tote · VAL = best book vs fair · cells flash on change</div>`;
@@ -220,21 +220,29 @@
         <span class="r best">${r.corp_best ? r.corp_best.toFixed(2) : "–"}${r.corp_best_book ? ` <span class="bk">${BOOK[r.corp_best_book] || ""}</span>` : ""}</span>
         <span class="r val ${val > 0 ? "pos" : "neg"}">${val != null ? (val > 0 ? "+" : "") + val.toFixed(0) : "·"}</span>
         <span class="r bf">${r.bf_back ? r.bf_back.toFixed(1) : "–"}</span>
-        <canvas class="spark" width="68" height="20" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
+        <span class="womcell">${r.bf_wom != null ? `<span class="womb" title="back vs lay pressure"><b style="width:${(r.bf_wom * 100).toFixed(0)}%"></b></span>` : '<span class="flatc">·</span>'}</span>
+        <canvas class="spark" height="26" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
       </div>`;
   }
 
   function drawSpark(c) {
+    c.width = Math.max(80, Math.round(c.clientWidth || 130));  // fill the TREND column
     const pts = JSON.parse(c.dataset.points || "[]").filter((v) => v != null);
-    const ctx = c.getContext("2d"), W = c.width, H = c.height, pad = 2;
+    const ctx = c.getContext("2d"), W = c.width, H = c.height, pad = 3;
     ctx.clearRect(0, 0, W, H);
     if (pts.length < 2) return;
     const mn = Math.min(...pts), mx = Math.max(...pts), rg = (mx - mn) || 1;
     const col = c.dataset.dir === "firming" ? "#21d16b" : c.dataset.dir === "drifting" ? "#ff4d4f" : "#6a6a76";
     const X = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
     const Y = (v) => H - pad - ((v - mn) / rg) * (H - 2 * pad);
+    // subtle area + line
+    ctx.beginPath(); ctx.moveTo(X(0), H - pad);
+    pts.forEach((v, i) => ctx.lineTo(X(i), Y(v)));
+    ctx.lineTo(X(pts.length - 1), H - pad); ctx.closePath();
+    ctx.fillStyle = col + "1f"; ctx.fill();
     ctx.beginPath(); pts.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
-    ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(pts.length - 1), Y(pts[pts.length - 1]), 2, 0, 7); ctx.fillStyle = col; ctx.fill();
   }
 
   // ---------- tooltip ----------

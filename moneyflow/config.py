@@ -28,6 +28,9 @@ class Settings:
     # Board (all upcoming races) is discovered less often than prices are polled.
     discovery_interval: float = float(os.environ.get("MF_DISCOVERY_INTERVAL", "60"))
     price_interval: float = float(os.environ.get("MF_PRICE_INTERVAL", "8"))
+    # Betfair is public + cheap and batches every active market in one call, so
+    # refresh it on a fast loop of its own for near-real-time exchange moves.
+    betfair_interval: float = float(os.environ.get("MF_BETFAIR_INTERVAL", "3"))
     # Corporate books rate-limit, so price them on a slower cadence than the tote.
     corp_interval: float = float(os.environ.get("MF_CORP_INTERVAL", "20"))
 

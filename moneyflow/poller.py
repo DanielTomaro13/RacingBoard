@@ -20,6 +20,7 @@ from .corporate import CorporateSource
 from .engine import SportsDataEngine
 from .sources import (
     BetfairMatcher,
+    apply_betfair_market,
     betfair_enrich,
     discover_races,
     finalize_snapshot,
@@ -46,7 +47,10 @@ class Poller:
     async def start(self) -> None:
         self._running = True
         await self._discover_once()  # prime before serving
-        await asyncio.gather(self._discovery_loop(), self._price_loop())
+        loops = [self._discovery_loop(), self._price_loop()]
+        if self.betfair:
+            loops.append(self._betfair_loop())
+        await asyncio.gather(*loops)
 
     async def stop(self) -> None:
         self._running = False
@@ -146,3 +150,46 @@ class Poller:
             detail = self.store.race_detail(race_key)
             if detail:
                 await self.broadcast({"type": "race", "race_key": race_key, "detail": detail})
+
+    # ---- fast Betfair loop ----
+
+    async def _betfair_loop(self) -> None:
+        """Refresh Betfair prices on the latest snapshots far faster than the tote,
+        in one batched call for every active exchange market."""
+        while self._running:
+            await asyncio.sleep(settings.betfair_interval)
+            try:
+                await self._refresh_betfair()
+            except Exception as exc:
+                print(f"[betfair] error: {exc}")
+
+    async def _refresh_betfair(self) -> None:
+        # Map every active race that has an exchange market to its latest snapshot.
+        id_to_key: dict[str, str] = {}
+        for key in list(self._active_keys):
+            st = self.store.races.get(key)
+            if st and st.latest and st.ref.betfair_market_id:
+                id_to_key[st.ref.betfair_market_id] = key
+        if not id_to_key:
+            return
+
+        blocks = await self.betfair.market_prices(list(id_to_key))
+        updated: set[str] = set()
+        for et in blocks:
+            for ev in et.get("eventNodes", []):
+                for mkt in ev.get("marketNodes", []):
+                    key = id_to_key.get(mkt.get("marketId"))
+                    st = self.store.races.get(key) if key else None
+                    if not st or not st.latest:
+                        continue
+                    apply_betfair_market(st.latest, mkt)
+                    finalize_snapshot(st.latest)   # fair/value depend on bf mids
+                    updated.add(key)
+
+        if self.broadcast and updated:
+            await self.broadcast({"type": "board", "board": self.store.board(),
+                                  "movers": self.store.movers()})
+            for key in updated:
+                detail = self.store.race_detail(key)
+                if detail:
+                    await self.broadcast({"type": "race", "race_key": key, "detail": detail})
