@@ -18,6 +18,7 @@ from .betfair import BetfairClient
 from .config import settings
 from .corporate import CorporateSource
 from .engine import SportsDataEngine
+from .form import FormSource
 from .sources import (
     BetfairMatcher,
     apply_betfair_market,
@@ -37,6 +38,7 @@ class Poller:
         self.betfair = BetfairClient() if settings.enable_betfair else None
         self.matcher = BetfairMatcher(self.betfair) if self.betfair else None
         self.corporate = CorporateSource() if settings.enable_corporate else None
+        self.form = FormSource()
         self._active_keys: list[str] = []
         self._running = False
 
@@ -98,6 +100,7 @@ class Poller:
         self.store.prune(keep)
         if self.corporate:
             self.corporate.prune(keep)
+        self.form.prune(keep)
         print(f"[discovery] {len(races)} races tracked, {len(active)} active @ {time.strftime('%H:%M:%S')}")
 
     # ---- prices ----
@@ -142,6 +145,11 @@ class Poller:
                 await self.corporate.enrich(self.engine, ref, snap)
             except Exception:
                 pass
+
+        try:
+            await self.form.enrich(self.engine, ref, snap)
+        except Exception:
+            pass
 
         finalize_snapshot(snap)
         self.store.add_snapshot(race_key, snap)

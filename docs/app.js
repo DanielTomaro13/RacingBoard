@@ -3,7 +3,7 @@
 (() => {
   const cfg = window.MF_CONFIG || {};
   const qs = new URLSearchParams(location.search);
-  const state = { board: [], movers: [], value: [], selected: null, details: {}, codeFilter: "ALL", mode: "connecting" };
+  const state = { board: [], movers: [], value: [], selected: null, expanded: null, details: {}, codeFilter: "ALL", mode: "connecting" };
   const flash = {}; // `${key}:${num}` -> last share, for cell flashing
 
   const $ = (id) => document.getElementById(id);
@@ -169,6 +169,7 @@
 
   // ---------- detail ----------
   function select(k) {
+    if (k !== state.selected) state.expanded = null;   // collapse when switching races
     state.selected = k;
     if (window.__sub) window.__sub(k);
     if (state.details[k]) renderDetail();
@@ -185,6 +186,7 @@
     const runners = d.runners.filter((r) => !r.scratched);
     const maxShare = Math.max(0.001, ...runners.map((r) => r.tote_pool_share || 0));
     const pickNum = p ? p.number : -1;
+    const tipped = new Set((d.tips && d.tips.numbers) || []);
 
     el.innerHTML = `
       <div class="dhead">
@@ -198,15 +200,20 @@
         <div class="m"><div class="k">BETFAIR MATCHED</div><div class="v">${money(d.bf_total_matched) || (ref.betfair_market_id ? "…" : "n/a")}</div></div>
         <div class="m"><div class="k">RUNNERS</div><div class="v">${runners.length}</div></div>
       </div>
+      ${d.tips ? `<div class="raceinfo"><span class="tips">⭐ TIPS <b>${(d.tips.numbers || []).join("-")}</b>${d.tips.tipster ? ` · ${esc(d.tips.tipster)}` : ""}</span><span class="hint">click a runner for form</span></div>` : ""}
       ${p ? pickCard(p) : ""}
       <div class="grid">
         <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
-        ${runners.map((r) => grow(r, maxShare, pickNum)).join("")}
+        ${runners.map((r) => grow(r, maxShare, pickNum, tipped)).join("")}
       </div>
       <div class="legend"><b><span class="live-mark">⚡</span> live</b> = shortening right now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value (better than fair) · <b>BF IN*</b> = est. Betfair $ since open</div>`;
 
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
-    wireTips(el);
+    el.querySelectorAll(".grow[data-num]").forEach((x) => x.onclick = () => {
+      const n = +x.dataset.num;
+      state.expanded = state.expanded === n ? null : n;
+      renderDetail();
+    });
   }
 
   function pickCard(p) {
@@ -226,7 +233,7 @@
       </div>`;
   }
 
-  function grow(r, maxShare, pickNum) {
+  function grow(r, maxShare, pickNum, tipped) {
     const key = state.selected + ":" + r.number;
     const share = r.tote_pool_share || 0;
     const prev = flash[key];
@@ -236,10 +243,11 @@
     const dv = r.share_delta != null ? r.share_delta * 100 : null;
     const val = r.value_pct;
     const live = r.direction === "firming" && (r.share_delta_recent || 0) > 0.006;
+    const expanded = state.expanded === r.number;
     return `
-      <div class="grow ${r.direction === "firming" ? "firm" : ""} ${live ? "live" : ""} ${r.number === pickNum ? "isPick" : ""} ${fl}" data-tip="runner" data-json='${esc(JSON.stringify(r))}'>
-        <span class="num">${r.number}</span>
-        <span class="nm">${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}</span>
+      <div class="grow ${r.direction === "firming" ? "firm" : ""} ${live ? "live" : ""} ${r.number === pickNum ? "isPick" : ""} ${expanded ? "exp" : ""} ${fl}" data-num="${r.number}">
+        <span class="num"><span class="chev">${expanded ? "▾" : "▸"}</span>${r.number}</span>
+        <span class="nm">${tipped && tipped.has(r.number) ? '<span class="star">⭐</span>' : ""}${esc(r.name)} ${live ? '<span class="live-mark">⚡</span>' : r.direction === "firming" ? '<span class="up">▲</span>' : ""}${r.last5 ? `<span class="l5">${esc(r.last5)}</span>` : ""}</span>
         <span class="r share">${pct(share)}<span class="bar ${r.direction === "drifting" ? "dn" : r.direction === "firming" ? "up" : ""}" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
         <span class="r fair">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
@@ -249,6 +257,31 @@
         <span class="womcell">${r.bf_wom != null ? `<span class="womb" title="back vs lay pressure"><b style="width:${(r.bf_wom * 100).toFixed(0)}%"></b></span>` : '<span class="flatc">·</span>'}</span>
         <span class="r bfin ${r.bf_money_est ? "" : "z"}">${moneyShort(r.bf_money_est) || "·"}</span>
         <canvas class="spark" height="30" data-points='${esc(JSON.stringify(r.share_spark || []))}' data-dir="${r.direction}"></canvas>
+      </div>${expanded ? expandBlock(r) : ""}`;
+  }
+
+  function expandBlock(r) {
+    const corp = r.corp || {};
+    const books = Object.entries(corp).sort((a, z) => z[1] - a[1]).map(([b, px]) => `${BOOK[b] || b} ${px.toFixed(2)}`).join(" · ") || "–";
+    const cell = (label, val) => `<div class="exp-cell"><label>${label}</label><b>${val}</b></div>`;
+    return `
+      <div class="growexp">
+        <div class="exp-comment ${r.comment ? "" : "muted"}">${r.comment ? esc(r.comment) : "No form comment available."}</div>
+        <div class="exp-grid">
+          ${cell("JOCKEY", esc(r.jockey || "–"))}
+          ${cell("TRAINER", esc(r.trainer || "–"))}
+          ${cell("BARRIER", r.barrier ?? "–")}
+          ${cell("WEIGHT", r.weight ? r.weight + "kg" : "–")}
+          ${cell("RUN STYLE", esc(r.speed_band || "–"))}
+          ${cell("LAST 5", esc(r.last5 || "–"))}
+          ${cell("FORM RTG", r.form_rating ?? "–")}
+          ${cell("TOTE / TAB FIX", (r.tote_win ? r.tote_win.toFixed(2) : "–") + " / " + (r.fixed_win ? r.fixed_win.toFixed(2) : "–"))}
+          ${cell("BETFAIR B / L", (r.bf_back ?? "–") + " / " + (r.bf_lay ?? "–"))}
+          ${cell("WEIGHT OF $", r.bf_wom != null ? (r.bf_wom * 100).toFixed(0) + "% back" : "–")}
+          ${cell("FAIR / VALUE", (r.fair_price ? r.fair_price.toFixed(2) : "–") + (r.value_pct != null ? ` / ${r.value_pct > 0 ? "+" : ""}${r.value_pct}%` : ""))}
+          ${cell("BOOKS", books)}
+          ${cell("EST BF IN", moneyShort(r.bf_money_est) || "–")}
+        </div>
       </div>`;
   }
 
@@ -301,7 +334,14 @@
         ${j.bf_wom != null ? `<div class="tt-r"><span>WEIGHT OF $</span><b>${(j.bf_wom * 100).toFixed(0)}% back</b></div>` : ""}
         ${j.bf_money_est ? `<div class="tt-r"><span>EST BF IN (since open)</span><b class="up">${moneyShort(j.bf_money_est)}</b></div>` : ""}
         <div class="tt-r"><span>TOTE / TAB FIX</span><b>${j.tote_win ? j.tote_win.toFixed(2) : "–"} / ${j.fixed_win ? j.fixed_win.toFixed(2) : "–"}</b></div>
-        ${rows ? `<div class="tt-sep">FIXED ODDS</div>${rows}` : ""}`;
+        ${rows ? `<div class="tt-sep">FIXED ODDS</div>${rows}` : ""}
+        ${(j.last5 || j.jockey || j.comment) ? `<div class="tt-sep">FORM</div>` : ""}
+        ${j.last5 ? `<div class="tt-r"><span>LAST 5</span><b>${esc(j.last5)}</b></div>` : ""}
+        ${j.jockey ? `<div class="tt-r"><span>JOCKEY</span><b>${esc(j.jockey)}</b></div>` : ""}
+        ${j.trainer ? `<div class="tt-r"><span>TRAINER</span><b>${esc(j.trainer)}</b></div>` : ""}
+        ${(j.barrier != null || j.weight) ? `<div class="tt-r"><span>BARRIER / WGT</span><b>${j.barrier ?? "–"} / ${j.weight ? j.weight + "kg" : "–"}</b></div>` : ""}
+        ${j.speed_band ? `<div class="tt-r"><span>RUN STYLE</span><b>${esc(j.speed_band)}</b></div>` : ""}
+        ${j.comment ? `<div class="tt-comment">${esc(j.comment)}</div>` : ""}`;
     }
     tt.innerHTML = h; tt.classList.add("show");
     const w = tt.offsetWidth, ht = tt.offsetHeight;

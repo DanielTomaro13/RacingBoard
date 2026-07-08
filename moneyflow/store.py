@@ -236,6 +236,8 @@ class Store:
             "ts": snap.ts,
             "bf_total_matched": snap.bf_total_matched,
             "tote_win_pool": snap.tote_win_pool,
+            "tips": snap.tips,
+            "comment": snap.comment,
             "pick": _pick(active),
             "runners": [
                 {

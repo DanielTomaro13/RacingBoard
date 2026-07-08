@@ -13,6 +13,7 @@ number, then match runners by normalised name.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from typing import Any
@@ -132,12 +133,21 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
         scratched = bool(r.get("scratched")) or (r.get("runnerStatus") == "SCRATCHED")
         pari = (r.get("parimutuel") or {}).get("returnWin")
         fixed = (r.get("fixedOdds") or {}).get("returnWin")
+        w = r.get("handicapWeight")
         rf = RunnerFlow(
             number=int(num),
             name=r.get("runnerName", ""),
             scratched=scratched,
             tote_win=pari if pari and pari > 0 else None,
             fixed_win=fixed if fixed and fixed > 0 else None,
+            # inline TAB form (free — same response)
+            last5=r.get("last5Starts") or None,
+            jockey=r.get("riderDriverName") or None,
+            trainer=r.get("trainerName") or None,
+            barrier=r.get("barrierNumber"),
+            weight=float(w) if isinstance(w, (int, float)) else None,
+            speed_band=r.get("earlySpeedRatingBand") or None,
+            form_rating=r.get("dfsFormRating") or None,
         )
         if rf.tote_win and not scratched:
             implied[rf.number] = 1.0 / rf.tote_win
@@ -164,11 +174,28 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
     elif str(data.get("raceStatus", "")).upper() in ("CLOSED", "INTERIM", "PAYING"):
         status = data["raceStatus"].upper()
 
+    # Race tipster picks + preview comment (both inline in the same response).
+    tips = None
+    t = data.get("tips")
+    if isinstance(t, dict) and t.get("tipRunnerNumbers"):
+        tips = {"tipster": t.get("tipster"), "numbers": t.get("tipRunnerNumbers")}
+    comment = None
+    rcom = data.get("raceComments")
+    if isinstance(rcom, str):
+        try:
+            rcom = json.loads(rcom)
+        except ValueError:
+            rcom = None
+    if isinstance(rcom, dict):
+        comment = rcom.get("comment")
+
     return RaceSnapshot(
         ts=time.time(),
         runners=runners,
         tote_win_pool=win_pool,
         status=status,
+        tips=tips,
+        comment=comment,
     )
 
 

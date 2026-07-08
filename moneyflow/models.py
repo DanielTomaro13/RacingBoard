@@ -59,6 +59,16 @@ class RunnerFlow:
     bf_wom: float | None = None            # weight of money, back$/(back$+lay$) [0..1]
     bf_implied: float | None = None        # implied prob from mid price [0..1]
 
+    # Static form / runner info (from TAB — doesn't change during the race).
+    last5: str | None = None               # last-5 finishing positions, e.g. "809x8"
+    jockey: str | None = None
+    trainer: str | None = None
+    barrier: int | None = None
+    weight: float | None = None            # handicap weight (kg)
+    speed_band: str | None = None          # early-speed style, e.g. "LEADER"
+    form_rating: float | None = None       # TAB form rating
+    comment: str | None = None             # per-runner form comment (narrative)
+
     # Derived movement (filled by the store from history).
     share_open: float | None = None        # first observed pool share
     share_delta: float | None = None       # current - open (pool share pts)
@@ -81,6 +91,10 @@ class RaceSnapshot:
     tote_win_pool: float | None = None     # gross win pool ($) if TAB reports it
     bf_total_matched: float | None = None  # Betfair matched on the WIN market ($)
     status: str = "OPEN"
+
+    # Race context (from TAB).
+    tips: dict | None = None               # {tipster, numbers:[...]}
+    comment: str | None = None             # race preview comment
 
     def to_dict(self) -> dict[str, Any]:
         return {
