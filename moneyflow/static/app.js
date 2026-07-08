@@ -221,7 +221,7 @@
         <span class="nm">${esc(r.name)} ${r.direction === "firming" ? '<span class="up">▲</span>' : ""}</span>
         <span class="r share">${pct(share)}<span class="bar" style="width:${barW}%"></span></span>
         <span class="r delta ${dv > 0.5 ? "up" : "flatc"}">${dv != null && dv > 0.5 ? "+" + dv.toFixed(0) : "·"}</span>
-        <span class="r">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
+        <span class="r fair ${r.fair_price && r.corp_best && r.fair_price > r.corp_best ? "hot" : ""}">${r.fair_price ? r.fair_price.toFixed(2) : "–"}</span>
         <span class="r best">${r.corp_best ? r.corp_best.toFixed(2) : "–"}${r.corp_best_book ? ` <span class="bk">${BOOK[r.corp_best_book] || ""}</span>` : ""}</span>
         <span class="r val ${val > 0 ? "pos" : "neg"}">${val != null ? (val > 0 ? "+" : "") + val.toFixed(0) : "·"}</span>
         <span class="r bf">${r.bf_back ? r.bf_back.toFixed(1) : "–"}</span>

@@ -191,6 +191,7 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .grow .share .bar { position: absolute; left: 0; bottom: -3px; height: 2px; background: var(--code-R); opacity: .55; }
 .grow .delta.up { color: var(--up); font-weight: 700; }
 .grow .delta.flatc { color: var(--muted); }
+.grow .fair.hot { color: var(--amber); font-weight: 700; background: color-mix(in srgb, var(--amber) 14%, transparent); border-radius: 3px; }
 .grow .best { color: var(--up); font-weight: 700; }
 .grow .best .bk { font-size: 8px; color: var(--muted); }
 .grow .val.pos { color: var(--up); } .grow .val.neg { color: var(--muted); }
