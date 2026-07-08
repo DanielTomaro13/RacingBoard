@@ -25,6 +25,7 @@ class Hub:
     def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
         self._lock = asyncio.Lock()
+        self._send_lock = asyncio.Lock()  # serialise sends across concurrent loops
 
     async def add(self, ws: WebSocket) -> None:
         async with self._lock:
@@ -36,14 +37,18 @@ class Hub:
 
     async def broadcast(self, message: dict) -> None:
         data = json.dumps(message, default=str)
-        dead = []
-        for ws in list(self._clients):
-            try:
-                await ws.send_text(data)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            await self.remove(ws)
+        # One send-loop at a time: the poller's price / per-race / fast-Betfair
+        # loops all broadcast concurrently, and two overlapping send_text calls on
+        # the same socket make Starlette raise (dropping the client).
+        async with self._send_lock:
+            dead = []
+            for ws in list(self._clients):
+                try:
+                    await ws.send_text(data)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                self._clients.discard(ws)
 
 
 store = Store()

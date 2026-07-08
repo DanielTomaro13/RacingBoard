@@ -144,6 +144,7 @@ class Store:
                     "tote_win_pool": snap.tote_win_pool if snap else None,
                     "favourite": _runner_brief(fav),
                     "pick": pick,
+                    "result_winner": snap.results[0] if snap and snap.results else None,
                 }
             )
         rows.sort(key=lambda r: r["start_time"])
@@ -177,6 +178,7 @@ class Store:
                         "share_delta": r.share_delta,
                         "share_delta_recent": r.share_delta_recent,
                         "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
+                        "confirmed": _confirmed(r),
                         "price_move_pct": r.price_move_pct,
                         "fair_price": r.fair_price,
                         "corp_best": r.corp_best,
@@ -238,16 +240,25 @@ class Store:
             "tote_win_pool": snap.tote_win_pool,
             "tips": snap.tips,
             "comment": snap.comment,
+            "results": snap.results,
             "pick": _pick(active),
             "runners": [
                 {
                     **r.to_dict(),
                     "share_spark": st.sparkline(r.number, "tote_pool_share"),
                     "bf_money_est": bf_flow.get(r.number),
+                    "confirmed": _confirmed(r),
                 }
                 for r in runners
             ],
         }
+
+
+def _confirmed(r: Any) -> bool:
+    """True when the tote firming is confirmed by the Betfair exchange — the pool
+    share is rising AND the exchange order book is leaning to back it (weight of
+    money >= 55%). Two independent markets agreeing = a real move, not tote noise."""
+    return r.direction == "firming" and r.bf_wom is not None and r.bf_wom >= 0.55
 
 
 def _betfair_flow(st: "RaceState") -> dict[int, float]:
@@ -262,8 +273,13 @@ def _betfair_flow(st: "RaceState") -> dict[int, float]:
     and assumes moves are money-driven), but it's directionally honest.
     """
     latest = st.latest
-    first = st.history[0] if st.history else None
-    if latest is None or first is None:
+    if latest is None:
+        return {}
+    # "Open" = the earliest snapshot that actually has Betfair data. history[0] is
+    # usually pre-Betfair (the market gets stamped/enriched a poll or two later),
+    # so keying off it would leave this permanently blank.
+    first = next((h for h in st.history if h.bf_total_matched), None)
+    if first is None:
         return {}
     m_now, m_open = latest.bf_total_matched, first.bf_total_matched
     if not m_now or not m_open:
@@ -314,6 +330,7 @@ def _pick(active: list[Any]) -> dict[str, Any] | None:
         "price_move_pct": r.price_move_pct,
         "share_delta_recent": r.share_delta_recent,
         "live": bool(r.share_delta_recent and r.share_delta_recent > 0.006),
+        "confirmed": _confirmed(r),
     })
     return brief
 

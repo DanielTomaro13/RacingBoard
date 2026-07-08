@@ -97,6 +97,7 @@ class RaceSnapshot:
     # Race context (from TAB).
     tips: dict | None = None               # {tipster, numbers:[...]}
     comment: str | None = None             # race preview comment
+    results: list[int] | None = None       # finishing order (runner numbers) once run
 
     def to_dict(self) -> dict[str, Any]:
         return {

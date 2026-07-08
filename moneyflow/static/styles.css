@@ -247,6 +247,22 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .grow.live { box-shadow: inset 2px 0 0 var(--up), 0 0 0 1px color-mix(in srgb, var(--up) 22%, transparent); }
 .frow.live .n::after { content: " ⚡"; color: var(--up); }
 
+/* cross-source confirmation — tote + Betfair agree */
+.conf { color: var(--up); font-weight: 800; font-size: 10px; letter-spacing: -1px; }
+.grow.confd { box-shadow: inset 3px 0 0 var(--up); background: color-mix(in srgb, var(--up) 5%, transparent); }
+.pickcard.confd { border-color: var(--up); background: linear-gradient(90deg, color-mix(in srgb, var(--up) 16%, var(--panel)), var(--panel)); }
+.pickcard.confd .tag { background: var(--up); }
+
+/* finishing-position badges + result bar */
+.pos { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 800; color: #06060a; }
+.pos.p1 { background: #ffd54a; } .pos.p2 { background: #c9cdd4; } .pos.p3 { background: #d9925a; } .pos.p4 { background: var(--muted); }
+.resultbar { display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: color-mix(in srgb, var(--up) 8%, var(--panel2)); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; flex-wrap: wrap; }
+.resultbar .flag { font-weight: 800; color: var(--up); letter-spacing: .5px; }
+.resultbar .pl { color: var(--ink2); }
+.resultbar .pl b { margin-right: 4px; }
+.resultbar .pl b.p1 { color: #ffd54a; } .resultbar .pl b.p2 { color: #c9cdd4; } .resultbar .pl b.p3 { color: #d9925a; } .resultbar .pl b.p4 { color: var(--muted); }
+.brow .won { color: var(--up); font-weight: 700; font-family: var(--mono); }
+
 .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 12px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); font-family: var(--mono); }
 .legend b { color: var(--up); }
 

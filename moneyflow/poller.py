@@ -72,6 +72,10 @@ class Poller:
     async def _discover_once(self) -> None:
         date = self._today()
         races = await discover_races(self.engine, date)
+        if races is None:
+            # Discovery fetch failed — keep the existing board rather than wiping it.
+            print("[discovery] fetch failed; keeping tracked races")
+            return
         for ref in races:
             self.store.upsert_ref(ref)
 

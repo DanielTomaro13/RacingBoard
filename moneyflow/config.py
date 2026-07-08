@@ -51,8 +51,10 @@ class Settings:
     enable_tab: bool = os.environ.get("MF_TAB", "1") == "1"
     enable_corporate: bool = os.environ.get("MF_CORPORATE", "1") == "1"
 
-    # Time-series retention per race (number of snapshots kept in memory).
-    history_len: int = int(os.environ.get("MF_HISTORY_LEN", "300"))
+    # Time-series retention per race (snapshots kept in memory). Sized to cover
+    # the full horizon at price_interval so the "since open" baseline for a race
+    # tracked up to ~90 min doesn't silently roll forward and drift.
+    history_len: int = int(os.environ.get("MF_HISTORY_LEN", "700"))
     # Window (seconds) for "recent" momentum — how fast a runner is shortening
     # right now, vs cumulatively since we started watching.
     recent_window: float = float(os.environ.get("MF_RECENT_WINDOW", "90"))

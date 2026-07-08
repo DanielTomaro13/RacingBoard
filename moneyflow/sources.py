@@ -67,13 +67,15 @@ def _to_epoch(iso: str) -> float | None:
 # discovery (TAB spine)
 # --------------------------------------------------------------------------
 
-async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef]:
+async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef] | None:
     """All races across enabled codes for `date`, within the jump horizon."""
     data = await engine.try_call(
         "tab_racing_meetings", date=date, jurisdiction=settings.jurisdiction
     )
     if not data:
-        return []
+        # None distinguishes a fetch failure (don't touch the tracked board) from
+        # a genuine empty day. Callers must skip pruning when this is None.
+        return None
 
     now = time.time()
     horizon = now + settings.horizon_minutes * 60
@@ -88,9 +90,9 @@ async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef]:
             no = race.get("raceNumber")
             start = race.get("raceStartTime", "")
             ep = _to_epoch(start)
-            # Keep races that are upcoming and inside the horizon (plus a small
-            # grace window so a race stays visible through the jump).
-            if ep is None or ep < now - 120 or ep > horizon:
+            # Skip malformed/abandoned entries (null race number) and races
+            # outside the horizon (plus a small grace window through the jump).
+            if no is None or ep is None or ep < now - 120 or ep > horizon:
                 continue
             races.append(
                 RaceRef(
@@ -169,8 +171,12 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
             break
 
     status = "OPEN"
-    if data.get("results"):
+    results = None
+    raw_results = data.get("results")
+    if raw_results:
         status = "RESULTED"
+        # TAB gives finishing order as groups (a group has >1 on a dead-heat).
+        results = [n for group in raw_results for n in (group if isinstance(group, list) else [group])]
     elif str(data.get("raceStatus", "")).upper() in ("CLOSED", "INTERIM", "PAYING"):
         status = data["raceStatus"].upper()
 
@@ -196,6 +202,7 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
         status=status,
         tips=tips,
         comment=comment,
+        results=results,
     )
 
 
@@ -291,7 +298,9 @@ def _best(levels: list[dict[str, Any]] | None) -> tuple[float | None, float | No
 def apply_betfair_market(snapshot: RaceSnapshot, mkt: dict[str, Any]) -> None:
     """Apply one Betfair marketNode's prices onto a snapshot's runners (in place)."""
     state = mkt.get("state", {}) or {}
-    snapshot.bf_total_matched = state.get("totalMatched")
+    tm = state.get("totalMatched")
+    if tm is not None:  # don't wipe a good figure with a partial/suspended payload
+        snapshot.bf_total_matched = tm
     by_name = {_norm_runner(r.name): r for r in snapshot.runners}
     for run in mkt.get("runners", []):
         name = (run.get("description", {}) or {}).get("runnerName", "")
@@ -351,6 +360,13 @@ def finalize_snapshot(snapshot: RaceSnapshot) -> None:
     for r in active:
         if r.number not in fair_prob and r.tote_pool_share:
             fair_prob[r.number] = r.tote_pool_share
+
+    # Renormalise so the field's fair probabilities sum to 1 — otherwise mixing a
+    # Betfair-subset de-vig with full-field tote shares leaves the total > 1 and
+    # biases the tote-only runners' fair prices.
+    total_fp = sum(fair_prob.values())
+    if total_fp > 0:
+        fair_prob = {num: p / total_fp for num, p in fair_prob.items()}
 
     for r in active:
         fp = fair_prob.get(r.number)

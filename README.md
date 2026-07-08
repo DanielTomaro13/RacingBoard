@@ -5,12 +5,15 @@ Greyhound & Harness — it surfaces the runners **shortening in price (money com
 in)**, gives a **recommended pick per race** that updates live, and shows a
 **fair price** (de-vigged) with the **value edge** of the best available book price.
 
-> Per runner: tote pool share + how much it's shortening · fair price (de-vigged
-> Betfair·tote) · value vs best book · Sportsbet/Pointsbet/Betfair prices. Scrolling
-> "money-in" tape, firmers panel, and a per-race pick. Only shortening runners are
-> shown as movers — drifters are ignored on purpose. (Ladbrokes/Neds and Dabble
-> aren't wired: Entain's public racecard 404s without auth, Dabble's per-race
-> fixture matching is too heavy for fast polling.)
+> Per runner: tote pool share + how much it's shortening · **✓✓ cross-source
+> confirmation** (tote firming *and* Betfair backing) · **⚡ live momentum** (moving
+> now) · fair price (de-vigged Betfair·tote) · value vs best book ·
+> Sportsbet/Pointsbet/Betfair prices · click-to-expand **form** (comment, jockey,
+> barrier, best time…) · tipster picks · **results** once run. Scrolling "money-in"
+> tape, a merged money/value list, and a per-race pick. Only shortening runners show
+> as movers — drifters are ignored on purpose. (Ladbrokes/Neds and Dabble aren't
+> wired: Entain's public racecard 404s without auth, Dabble's per-race fixture
+> matching is too heavy for fast polling.)
 
 ### 🔴 [Live demo](https://danieltomaro13.github.io/RacingBoard/)
 
