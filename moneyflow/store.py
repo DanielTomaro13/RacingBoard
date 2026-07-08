@@ -255,14 +255,16 @@ class Store:
 
 
 def _confirm_count(r: Any) -> int:
-    """How many independent markets agree this runner is shortening: the tote (pool
-    share rising), the Betfair exchange (weight of money >= 55% backing) and Betr
-    fixed odds (book-wide mover). More agreeing markets = realer steam."""
+    """How many independent markets agree this runner is shortening — each counts
+    separately: the tote (pool share rising), the Betfair exchange (weight of money
+    >= 55% backing), each corporate book shortening since open (Sportsbet,
+    Pointsbet), and Betr's book-wide mover feed. More markets = realer steam."""
     c = 0
     if r.direction == "firming":
         c += 1
     if r.bf_wom is not None and r.bf_wom >= 0.55:
         c += 1
+    c += len(r.corp_short or [])
     if r.betr_short:
         c += 1
     return c

@@ -16,7 +16,15 @@
   };
   const esc = (s) => (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const BOOK = { pointsbet: "PB", sportsbet: "SB", betfair: "BF", tab: "TAB" };
-  const ticks = (n) => "✓".repeat(n || 2);  // confirmation marks (2 or 3 markets)
+  const ticks = (n) => "✓".repeat(n || 2);  // confirmation marks (one per market)
+  function confirmMarkets(r) {
+    const m = [];
+    if (r.direction === "firming") m.push("Tote");
+    if (r.bf_wom != null && r.bf_wom >= 0.55) m.push("Betfair");
+    (r.corp_short || []).forEach((b) => m.push(BOOK[b] || b));
+    if (r.betr_short) m.push("Betr");
+    return m;
+  }
   function ttg(iso) {
     const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
     if (isNaN(m)) return "";
@@ -212,7 +220,7 @@
         <div class="ghead"><span>#</span><span>RUNNER</span><span class="r">SHARE</span><span class="r">Δ IN</span><span class="r">FAIR</span><span class="r">BEST</span><span class="r">VAL</span><span class="r">BF</span><span class="r">WGT $</span><span class="r">BF IN*</span><span class="r">TREND</span></div>
         ${runners.map((r) => grow(r, maxShare, pickNum, tipped, ref.code, placing)).join("")}
       </div>
-      <div class="legend"><b class="up">✓ per market</b> agreeing (tote · Betfair · Betr) · <b><span class="live-mark">⚡</span> live</b> = shortening now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value · <b>BF IN*</b> = est. Betfair $ since open</div>`;
+      <div class="legend"><b class="up">✓ per market</b> shortening (tote · Betfair · Sportsbet · Pointsbet · Betr) · <b><span class="live-mark">⚡</span> live</b> = shortening now · <b>▲ money in</b> = pool share rising since open · FAIR = de-vigged Betfair·tote · <b style="color:var(--amber)">amber BEST</b> = value · <b>BF IN*</b> = est. Betfair $ since open</div>`;
 
     el.querySelectorAll("canvas.spark").forEach(drawSpark);
     el.querySelectorAll(".grow[data-num]").forEach((x) => x.onclick = () => {
@@ -294,7 +302,7 @@
       cell("FAIR / VALUE", (r.fair_price ? r.fair_price.toFixed(2) : "–") + (r.value_pct != null ? ` / ${r.value_pct > 0 ? "+" : ""}${r.value_pct}%` : "")) +
       cell("BOOKS", books) +
       opt("EST BF IN", moneyShort(r.bf_money_est)) +
-      (r.betr_short ? cell("BETR", '<span class="up">shortening ▲</span>') : "");
+      opt("SHORTENING ON", confirmMarkets(r).map((m) => `<span class="up">${m}</span>`).join(" · "));
 
     return `
       <div class="growexp">

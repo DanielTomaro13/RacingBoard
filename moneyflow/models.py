@@ -46,6 +46,7 @@ class RunnerFlow:
     corp: dict[str, float] = field(default_factory=dict)
     corp_best: float | None = None
     corp_best_book: str | None = None
+    corp_short: list[str] = field(default_factory=list)   # corporate books shortening since open
 
     # Fair price (de-vigged from the sharpest market — Betfair, else tote) and the
     # value edge of the best available book price vs that fair price (%; >0 = value).

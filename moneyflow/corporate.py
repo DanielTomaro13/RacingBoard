@@ -148,6 +148,7 @@ class CorporateSource:
     def __init__(self, books: list[CorporateBook] | None = None) -> None:
         self.books = books if books is not None else [PointsbetBook(), SportsbetBook()]
         self._cache: dict[str, dict[str, dict[str, float]]] = {}  # race_key -> runner -> book -> price
+        self._open: dict[str, dict[str, dict[str, float]]] = {}   # race_key -> runner -> book -> first-seen price
         self._last_fetch: dict[str, float] = {}
 
     async def refresh_indices(self, engine: SportsDataEngine, date: str) -> None:
@@ -175,11 +176,20 @@ class CorporateSource:
                     merged.setdefault(runner_norm, {})[book.name] = p["price"]
             if merged:
                 self._cache[race.race_key] = merged
+                # Record the first price seen per (runner, book) as its "open" so
+                # each book's shortening is measured since we started watching —
+                # consistent with the tote/Betfair baselines.
+                opens = self._open.setdefault(race.race_key, {})
+                for runner_norm, books in merged.items():
+                    ro = opens.setdefault(runner_norm, {})
+                    for bk, px in books.items():
+                        ro.setdefault(bk, px)
                 self._last_fetch[race.race_key] = now
 
         cache = self._cache.get(race.race_key)
         if not cache:
             return
+        opens = self._open.get(race.race_key, {})
         for r in snapshot.runners:
             books = cache.get(_norm_runner(r.name))
             if not books:
@@ -188,9 +198,14 @@ class CorporateSource:
             best_book, best_price = max(books.items(), key=lambda kv: kv[1])
             r.corp_best = best_price
             r.corp_best_book = best_book
+            # Each book whose price has shortened since first seen = an independent
+            # money-flow confirmation.
+            ro = opens.get(_norm_runner(r.name), {})
+            r.corp_short = [bk for bk, px in books.items() if ro.get(bk) and px < ro[bk]]
 
     def prune(self, keep_keys: set[str]) -> None:
         for key in list(self._cache):
             if key not in keep_keys:
                 self._cache.pop(key, None)
+                self._open.pop(key, None)
                 self._last_fetch.pop(key, None)
