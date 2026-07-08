@@ -38,7 +38,7 @@ class BetrMovers:
                     continue
                 flucs = (x.get("OutcomeFluc") or {}).get("Flucs") or []
                 cur = x.get("Win")
-                open_p = flucs[0]["Price"] if flucs else None  # first = earliest offset
+                open_p = flucs[0].get("Price") if flucs else None  # first = earliest offset
                 if open_p and cur and cur < open_p:            # shortening only
                     key = (code, _norm_venue(x.get("Venue", "")), int(rno),
                            _norm_runner(x.get("OutcomeName", "")))

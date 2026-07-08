@@ -56,7 +56,7 @@ class Settings:
     # Time-series retention per race (snapshots kept in memory). Sized to cover
     # the full horizon at price_interval so the "since open" baseline for a race
     # tracked up to ~90 min doesn't silently roll forward and drift.
-    history_len: int = int(os.environ.get("MF_HISTORY_LEN", "700"))
+    history_len: int = int(os.environ.get("MF_HISTORY_LEN", "500"))
     # Window (seconds) for "recent" momentum — how fast a runner is shortening
     # right now, vs cumulatively since we started watching.
     recent_window: float = float(os.environ.get("MF_RECENT_WINDOW", "90"))

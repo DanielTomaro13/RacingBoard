@@ -77,8 +77,11 @@ class Poller:
         date = self._today()
         races = await discover_races(self.engine, date)
         if races is None:
-            # Discovery fetch failed — keep the existing board rather than wiping it.
-            print("[discovery] fetch failed; keeping tracked races")
+            # Discovery fetch failed — keep the board rather than wiping it, but
+            # still drop races well past the jump so a sustained outage can't grow
+            # the tracked set unbounded.
+            print("[discovery] fetch failed; keeping tracked races (dropping long-jumped)")
+            self._prune_stale()
             return
         for ref in races:
             self.store.upsert_ref(ref)
@@ -110,6 +113,23 @@ class Poller:
             self.corporate.prune(keep)
         self.form.prune(keep)
         print(f"[discovery] {len(races)} races tracked, {len(active)} active @ {time.strftime('%H:%M:%S')}")
+
+    def _prune_stale(self) -> None:
+        """Drop races more than 5 min past their jump — used when discovery can't
+        refresh the list (fetch failure) so the tracked set still shrinks."""
+        now = datetime.now(timezone.utc).timestamp()
+        keep = set()
+        for key, st in self.store.races.items():
+            try:
+                ep = datetime.fromisoformat(st.ref.start_time.replace("Z", "+00:00")).timestamp()
+            except Exception:
+                ep = None
+            if ep is None or ep > now - 300:
+                keep.add(key)
+        self.store.prune(keep)
+        if self.corporate:
+            self.corporate.prune(keep)
+        self.form.prune(keep)
 
     # ---- prices ----
 

@@ -369,6 +369,10 @@ def finalize_snapshot(snapshot: RaceSnapshot) -> None:
         fair_prob = {num: p / total_fp for num, p in fair_prob.items()}
 
     for r in active:
+        # Reset first — finalize re-runs on the same snapshot every fast-Betfair
+        # tick, so stale values must be cleared when the condition no longer holds.
+        r.fair_price = None
+        r.value_pct = None
         fp = fair_prob.get(r.number)
         if not fp or fp <= 0:
             continue

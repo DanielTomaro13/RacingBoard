@@ -39,6 +39,11 @@
       state.board = msg.board || [];
       state.movers = msg.movers || [];
       state.value = msg.value || [];
+      // Drop cached detail for races that have left the board (bounds memory over a day).
+      const liveKeys = new Set(state.board.map((r) => r.race_key));
+      for (const k of Object.keys(state.details)) {
+        if (!liveKeys.has(k) && k !== state.selected) delete state.details[k];
+      }
       renderTop(); renderTape(); renderBoard(); renderSignals();
       if (!state.selected && state.board.length) {
         const withPick = state.movers[0] ? state.movers[0].race_key : state.board[0].race_key;
@@ -180,7 +185,10 @@
 
   // ---------- detail ----------
   function select(k) {
-    if (k !== state.selected) state.expanded = null;   // collapse when switching races
+    if (k !== state.selected) {
+      state.expanded = null;                 // collapse when switching races
+      for (const fk of Object.keys(flash)) delete flash[fk];  // flash is per-race; drop stale
+    }
     state.selected = k;
     if (window.__sub) window.__sub(k);
     if (state.details[k]) renderDetail();
