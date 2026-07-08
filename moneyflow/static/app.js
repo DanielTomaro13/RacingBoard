@@ -78,7 +78,7 @@
     window.__sub = (k) => { const f = frames[i % frames.length]; if (f.races && f.races[k]) apply({ type: "race", race_key: k, detail: f.races[k] }); };
     const tick = () => {
       const f = frames[i % frames.length];
-      apply({ type: "board", board: f.board, movers: f.movers, value: f.value || [] });
+      apply({ type: "board", board: f.board, movers: f.movers, value: f.value || [], scores: f.scores });
       if (state.selected && f.races && f.races[state.selected]) apply({ type: "race", race_key: state.selected, detail: f.races[state.selected] });
       i++;
     };
