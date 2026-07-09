@@ -132,6 +132,11 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .filters button { font-family: var(--mono); font-size: 11px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 2px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .filters button.active { color: var(--ink); border-color: var(--amber); }
 .filters button i { width: 7px; height: 7px; border-radius: 2px; }
+.brow .confcount { font-family: var(--mono); font-size: 8px; font-weight: 700; color: var(--up); border: 1px solid color-mix(in srgb, var(--up) 45%, transparent); padding: 0 2px; border-radius: 2px; }
+.mini-toggle { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .5px; color: var(--muted); background: var(--panel3); border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; cursor: pointer; }
+.mini-toggle:hover { color: var(--ink); }
+.mini-toggle.on { color: var(--up); border-color: var(--up); }
+.panel > header .mini-toggle + .count { margin-left: 8px; }
 .board { max-height: 48vh; }
 .brow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .brow:hover { background: var(--panel2); }

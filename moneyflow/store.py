@@ -132,11 +132,13 @@ class Store:
         for st in self.races.values():
             snap = st.latest
             fav = pick = None
+            n_conf = 0
             if snap:
                 active = [r for r in snap.runners if not r.scratched]
                 if active:
                     fav = max(active, key=lambda r: (r.tote_pool_share or r.bf_implied or 0))
                     pick = _pick(active)
+                    n_conf = sum(1 for r in active if _confirmed(r))
             rows.append(
                 {
                     "race_key": st.ref.race_key,
@@ -152,6 +154,7 @@ class Store:
                     "tote_win_pool": snap.tote_win_pool if snap else None,
                     "favourite": _runner_brief(fav),
                     "pick": pick,
+                    "confirmed_count": n_conf,
                     "result_winner": snap.results[0] if snap and snap.results else None,
                 }
             )

@@ -3,7 +3,7 @@
 (() => {
   const cfg = window.MF_CONFIG || {};
   const qs = new URLSearchParams(location.search);
-  const state = { board: [], movers: [], value: [], scores: null, selected: null, expanded: null, details: {}, codeFilter: "ALL", mode: "connecting" };
+  const state = { board: [], movers: [], value: [], scores: null, selected: null, expanded: null, details: {}, codeFilter: "ALL", confirmedOnly: false, mode: "connecting" };
   const flash = {}; // `${key}:${num}` -> last share, for cell flashing
 
   const $ = (id) => document.getElementById(id);
@@ -161,7 +161,7 @@
       <div class="brow ${r.race_key === state.selected ? "sel" : ""}" data-key="${esc(r.race_key)}">
         <span class="code ${r.code}">${r.code}</span>
         <span class="rv-wrap" style="min-width:0">
-          <div class="rv"><span class="venue">${esc(r.venue)}</span><span class="rno">R${r.race_no}</span>${r.has_betfair ? '<span class="bf">BF</span>' : ""}</div>
+          <div class="rv"><span class="venue">${esc(r.venue)}</span><span class="rno">R${r.race_no}</span>${r.has_betfair ? '<span class="bf">BF</span>' : ""}${r.confirmed_count ? `<span class="confcount" title="${r.confirmed_count} confirmed (2+ markets)">${r.confirmed_count}✓</span>` : ""}</div>
           <div class="pick">${pickTxt}</div>
         </span>
         <span class="rt"><div class="ttg ${soon ? "soon" : ""}">${ttg(r.start_time)}</div><div class="st">${r.status !== "OPEN" ? esc(r.status) : ""}</div></span>
@@ -188,8 +188,9 @@
       e.value = m.value_pct; e.best = m.corp_best; e.book = m.corp_best_book;
       map.set(keyOf(m), e);
     });
-    const rows = [...map.values()];
-    if (!rows.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">no signals yet…</span><span></span><span></span></div>`; $("signals-count").textContent = ""; return; }
+    let rows = [...map.values()];
+    if (state.confirmedOnly) rows = rows.filter((e) => e.confirmed);
+    if (!rows.length) { el.innerHTML = `<div class="frow"><span></span><span class="who flatc">${state.confirmedOnly ? "no confirmed runners" : "no signals yet…"}</span><span></span><span></span></div>`; $("signals-count").textContent = ""; return; }
     // confirmed steam first, then live, then both-signals, then firmers, then value
     const tier = (e) => (e.confirmed ? 4 : e.live ? 3 : e.firm && e.value ? 2 : e.firm ? 1 : 0);
     rows.sort((a, b) => tier(b) - tier(a) || ((b.recent || 0) - (a.recent || 0)) || ((b.firm || 0) - (a.firm || 0)) || ((b.value || 0) - (a.value || 0)));
@@ -412,6 +413,11 @@
   }
 
   // ---------- chrome ----------
+  $("conf-filter").onclick = () => {
+    state.confirmedOnly = !state.confirmedOnly;
+    $("conf-filter").classList.toggle("on", state.confirmedOnly);
+    renderSignals();
+  };
   $("code-filters").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     state.codeFilter = b.dataset.code;
