@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 # capture artifact — the published copy lives in docs/data/replay.json
 moneyflow/static/data/
+
+# firm-prediction artifacts (regenerable / large)
+data/training/
+*.pkl

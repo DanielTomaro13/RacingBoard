@@ -67,8 +67,12 @@ def _to_epoch(iso: str) -> float | None:
 # discovery (TAB spine)
 # --------------------------------------------------------------------------
 
-async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef] | None:
-    """All races across enabled codes for `date`, within the jump horizon."""
+async def discover_races(
+    engine: SportsDataEngine, date: str
+) -> tuple[list[RaceRef], dict | None] | None:
+    """All races across enabled codes for `date`, within the jump horizon — plus a
+    pointer to the NEXT race beyond the horizon (so a quiet morning can say when
+    racing starts instead of just 'waiting')."""
     data = await engine.try_call(
         "tab_racing_meetings", date=date, jurisdiction=settings.jurisdiction
     )
@@ -80,9 +84,15 @@ async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef] |
     now = time.time()
     horizon = now + settings.horizon_minutes * 60
     races: list[RaceRef] = []
+    next_up: dict | None = None
     for m in data.get("meetings", []):
         code = m.get("raceType")
         if code not in settings.codes:
+            continue
+        # AU/NZ only — skip international meetings (USA/GBR/FRA/…). `location` is the
+        # meeting's state (NSW/VIC/…) or country code (NZL, and the excluded rest).
+        location = m.get("location")
+        if location not in settings.countries:
             continue
         venue = m.get("meetingName", "")
         mnem = m.get("venueMnemonic", "")
@@ -90,9 +100,17 @@ async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef] |
             no = race.get("raceNumber")
             start = race.get("raceStartTime", "")
             ep = _to_epoch(start)
-            # Skip malformed/abandoned entries (null race number) and races
-            # outside the horizon (plus a small grace window through the jump).
-            if no is None or ep is None or ep < now - 120 or ep > horizon:
+            # Skip malformed/abandoned entries (null race number). Keep races up to
+            # 30 min PAST the jump: TAB often posts results several minutes after
+            # the off, and dropping a race at jump+2min left ledger entries and
+            # training outcomes permanently unsettled. The board hides resulted ones.
+            if no is None or ep is None or ep < now - 1800:
+                continue
+            if ep > horizon:
+                # Beyond the tracking window — remember the earliest as "next up".
+                if next_up is None or ep < next_up["epoch"]:
+                    next_up = {"epoch": ep, "start_time": start, "code": code,
+                               "venue": venue, "race_no": int(no)}
                 continue
             races.append(
                 RaceRef(
@@ -104,10 +122,11 @@ async def discover_races(engine: SportsDataEngine, date: str) -> list[RaceRef] |
                     race_name=race.get("raceName", ""),
                     start_time=start,
                     date=date,
+                    location=location or "",
                 )
             )
     races.sort(key=lambda r: r.start_time)
-    return races
+    return races, next_up
 
 
 # --------------------------------------------------------------------------
@@ -172,11 +191,16 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
 
     status = "OPEN"
     results = None
+    winners = None
     raw_results = data.get("results")
     if raw_results:
         status = "RESULTED"
-        # TAB gives finishing order as groups (a group has >1 on a dead-heat).
+        # TAB gives finishing order as groups (a group has >1 on a dead-heat). Keep
+        # the flat order for display AND the whole first group as `winners`, so a
+        # dead-heat credits every winner when grading.
         results = [n for group in raw_results for n in (group if isinstance(group, list) else [group])]
+        first = raw_results[0]
+        winners = list(first) if isinstance(first, list) else [first]
     elif str(data.get("raceStatus", "")).upper() in ("CLOSED", "INTERIM", "PAYING"):
         status = data["raceStatus"].upper()
 
@@ -203,6 +227,7 @@ async def tab_snapshot(engine: SportsDataEngine, race: RaceRef) -> RaceSnapshot 
         tips=tips,
         comment=comment,
         results=results,
+        winners=winners,
     )
 
 

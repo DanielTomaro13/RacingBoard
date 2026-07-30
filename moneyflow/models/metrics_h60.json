@@ -1,0 +1,1 @@
+{"horizon": 60, "rows": 5235, "firm_rate": 0.196, "model_auc": 0.651, "b1_auc": 0.608, "beats_baseline": true, "top_features": ["tote_share", "implied_share", "value_pct", "fair_price", "log_price"], "trained_at": 1783810990.723265}

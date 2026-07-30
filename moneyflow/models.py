@@ -18,6 +18,7 @@ class RaceRef:
     race_name: str
     start_time: str        # ISO8601
     date: str              # YYYY-MM-DD
+    location: str = ""     # TAB meeting location: AU state (NSW/VIC/…) or NZL
 
     # Optional cross-book handles filled in during enrichment.
     betfair_market_id: str | None = None
@@ -123,6 +124,7 @@ class RaceSnapshot:
     tips: dict | None = None               # {tipster, numbers:[...]}
     comment: str | None = None             # race preview comment
     results: list[int] | None = None       # finishing order (runner numbers) once run
+    winners: list[int] | None = None       # the whole first group — >1 on a dead-heat
 
     def to_dict(self) -> dict[str, Any]:
         return {

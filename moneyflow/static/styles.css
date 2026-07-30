@@ -45,6 +45,12 @@ body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: var(--sans); font-size: 13px; line-height: 1.35;
   -webkit-font-smoothing: antialiased;
+  /* Viewport-locked terminal: the page itself never scrolls — panels scroll
+     internally, so there is no dead space below the fold. */
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+}
+@media (max-width: 1000px) {  /* small screens: back to a normally scrolling page */
+  body { display: block; height: auto; overflow: auto; }
 }
 .mono, b, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .up { color: var(--up); } .down { color: var(--down); } .flatc { color: var(--muted); }
@@ -95,6 +101,48 @@ body {
 .scoretbl .up { color: var(--up); font-weight: 700; }
 .scoretbl .down { color: var(--down); }
 
+/* ---------- follower ledger (committed, immutable) ---------- */
+.follows { padding: 4px 10px 8px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+@media (max-width: 1000px) { .follows { max-height: 30vh; } }
+.follows::-webkit-scrollbar { width: 8px; } .follows::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 6px; }
+.fl-list { display: flex; flex-direction: column; }
+.fl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 1px solid var(--line); }
+.fl-row:first-child { border-top: none; }
+.fl-sel { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.fl-sel b { font-family: var(--sans); font-size: 11.5px; color: var(--ink); letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.fl-right { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl-stake { color: var(--amber); font-weight: 700; }
+.fl-right .up { color: var(--up); font-weight: 700; } .fl-right .down { color: var(--down); font-weight: 700; }
+.fl-won { color: var(--up); font-weight: 800; font-size: 9px; letter-spacing: .5px; }
+.fl-lost { color: var(--down); font-weight: 800; font-size: 9px; letter-spacing: .5px; }
+.fl-void { color: var(--muted); font-weight: 700; font-size: 9px; letter-spacing: .5px; }
+.fl-pend { color: var(--amber); font-weight: 700; font-size: 9px; letter-spacing: .5px; }
+.ff-group { margin-left: auto; display: inline-flex; gap: 3px; }
+.ff-group .mini-toggle { margin-left: 0; }
+.panel > header .ff-group + .count { margin-left: 8px; }
+
+/* topbar links (e.g. the 🧠 data & model page) share the icon-btn look */
+a.icon-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* ---------- predicted firmers (heuristic) ---------- */
+.firmpred { padding: 2px 6px 6px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+@media (max-width: 1000px) { .firmpred { max-height: 26vh; } }
+.fp-row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+.fp-row:first-child { border-top: none; }
+.fp-row:hover { background: var(--panel2); }
+.fp-main { flex: 1; min-width: 0; }
+.fp-top { display: flex; align-items: center; gap: 6px; }
+.fp-top b { font-family: var(--sans); font-size: 11.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-tier { font-family: var(--mono); font-size: 8px; font-weight: 800; letter-spacing: .5px; padding: 1px 4px; border-radius: 2px; }
+.fp-strong { color: #06060a; background: var(--up); }
+.fp-warm { color: #06060a; background: var(--amber); }
+.fp-lean { color: var(--muted); border: 1px solid var(--line2); }
+.fp-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 1px; }
+.fp-score { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.fp-bar { width: 46px; height: 4px; background: var(--line2); border-radius: 3px; overflow: hidden; }
+.fp-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--amber), var(--up)); }
+
 /* ---------- ticker tape ---------- */
 .tape-wrap { display: flex; align-items: stretch; height: 27px; background: #060608; border-bottom: 1px solid var(--line2); }
 .tape-label { display: flex; align-items: center; padding: 0 12px; font-family: var(--mono); font-size: 10px; font-weight: 800; letter-spacing: 1px;
@@ -109,11 +157,30 @@ body {
 @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
 /* ---------- layout ---------- */
-main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; align-items: start; }
+main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; align-items: stretch;
+       flex: 1 1 auto; min-height: 0; }
 @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
-.col { display: flex; flex-direction: column; gap: 8px; }
-.col.left { position: sticky; top: 76px; }
-@media (max-width: 1000px) { .col.left { position: static; } }
+.col { display: flex; flex-direction: column; gap: 8px; min-height: 0; height: 100%; }
+/* Left panels split the column proportionally (scorecard stays content-sized) and
+   their lists scroll internally — the column always exactly fills the viewport,
+   so nothing overflows and no dead space appears at any window size. */
+.col.left .panel { display: flex; flex-direction: column; min-height: 0; flex: 0 0 auto; }
+/* :where() keeps the :has() argument at zero specificity so .collapsed (below,
+   same specificity, later in file) can override these when a panel is folded. */
+.col.left .panel:has(:where(#follows)) { flex: 6 1 0; min-height: 110px; }
+.col.left .panel:has(:where(#board))   { flex: 6 1 0; min-height: 130px; }
+.col.left .panel:has(:where(#signals)) { flex: 3 1 0; min-height: 80px; }
+.col.left .panel:has(:where(#firm))    { flex: 5 1 0; min-height: 100px; }
+.col.left { overflow-y: auto; }  /* tiny windows: column scrolls rather than clips */
+@media (max-width: 1000px) { .col { height: auto; } .col.left .panel { flex: 0 0 auto; } }
+
+/* Collapsible panels: click a panel's title to fold it to just its header — the
+   freed height flows to the other panels automatically (flex). State persists. */
+.col.left .panel > header h2 { cursor: pointer; user-select: none; }
+.col.left .panel > header h2::before { content: "▾ "; color: var(--muted); font-size: 9px; }
+.col.left .panel.collapsed > header h2::before { content: "▸ "; }
+.col.left .panel.collapsed { flex: 0 0 auto; min-height: 0; }
+.col.left .panel.collapsed > :not(header) { display: none; }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
 .panel > header { display: flex; align-items: baseline; gap: 8px; padding: 7px 11px; background: var(--panel2); border-bottom: 1px solid var(--line); }
@@ -137,7 +204,8 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .mini-toggle:hover { color: var(--ink); }
 .mini-toggle.on { color: var(--up); border-color: var(--up); }
 .panel > header .mini-toggle + .count { margin-left: 8px; }
-.board { max-height: 48vh; }
+.board { flex: 1 1 0; min-height: 0; }
+@media (max-width: 1000px) { .board { max-height: 62vh; } }
 .brow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .brow:hover { background: var(--panel2); }
 .brow.sel { background: color-mix(in srgb, var(--amber) 9%, var(--panel)); box-shadow: inset 3px 0 0 var(--amber); }
@@ -154,7 +222,8 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 .brow .st { font-size: 8px; letter-spacing: .5px; color: var(--muted); }
 
 /* ---------- firmers list ---------- */
-.firmers { max-height: 32vh; }
+.firmers { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+@media (max-width: 1000px) { .firmers { max-height: 32vh; } }
 .frow { display: grid; grid-template-columns: 16px 1fr auto auto; gap: 8px; align-items: center; padding: 5px 10px; border-bottom: 1px solid var(--line); cursor: pointer; font-family: var(--mono); }
 .frow:hover { background: var(--panel2); }
 .frow .ar { color: var(--up); }
@@ -172,7 +241,8 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 
 /* ---------- detail ---------- */
 /* fill the viewport height so the runner grid stretches — no blank at the bottom */
-.detail { display: flex; flex-direction: column; min-height: calc(100vh - 92px); }
+.detail { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow-y: auto; }
+@media (max-width: 1000px) { .detail { height: auto; min-height: 60vh; } }
 .empty { color: var(--muted); text-align: center; padding: 90px 0; font-family: var(--mono); letter-spacing: 2px; }
 .empty .big { font-size: 44px; color: var(--line2); margin-bottom: 10px; }
 .dhead { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--panel2); border-bottom: 1px solid var(--line); }
@@ -296,5 +366,5 @@ main { display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; 
 #tt .tt-r b { color: var(--ink); }
 #tt .tt-sep { margin: 5px 0 3px; font-size: 9px; letter-spacing: 1px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 4px; }
 
-footer { text-align: center; color: var(--muted); font-size: 10px; font-family: var(--mono); padding: 10px 0 20px; }
+footer { text-align: center; color: var(--muted); font-size: 9px; font-family: var(--mono); padding: 3px 0 5px; flex: 0 0 auto; }
 footer a { color: var(--muted); }

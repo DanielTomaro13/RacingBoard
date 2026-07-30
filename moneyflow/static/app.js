@@ -3,7 +3,7 @@
 (() => {
   const cfg = window.MF_CONFIG || {};
   const qs = new URLSearchParams(location.search);
-  const state = { board: [], movers: [], value: [], scores: null, selected: null, expanded: null, details: {}, codeFilter: "ALL", confirmedOnly: false, mode: "connecting" };
+  const state = { board: [], movers: [], value: [], firm: [], scores: null, follows: null, selected: null, expanded: null, details: {}, codeFilter: "ALL", confirmedOnly: false, followFilter: "ALL", mode: "connecting" };
   const flash = {}; // `${key}:${num}` -> last share, for cell flashing
 
   const $ = (id) => document.getElementById(id);
@@ -39,8 +39,11 @@
       state.board = msg.board || [];
       state.movers = msg.movers || [];
       state.value = msg.value || [];
+      state.firm = msg.firm || [];
+      state.nextUp = msg.next_up || null;
       state.scores = msg.scores || null;
-      renderScores();
+      state.follows = msg.follows || null;
+      renderScores(); renderFollows(); renderFirm();
       // Drop cached detail for races that have left the board (bounds memory over a day).
       const liveKeys = new Set(state.board.map((r) => r.race_key));
       for (const k of Object.keys(state.details)) {
@@ -78,7 +81,7 @@
     window.__sub = (k) => { const f = frames[i % frames.length]; if (f.races && f.races[k]) apply({ type: "race", race_key: k, detail: f.races[k] }); };
     const tick = () => {
       const f = frames[i % frames.length];
-      apply({ type: "board", board: f.board, movers: f.movers, value: f.value || [], scores: f.scores });
+      apply({ type: "board", board: f.board, movers: f.movers, value: f.value || [], firm: f.firm || [], scores: f.scores, follows: f.follows });
       if (state.selected && f.races && f.races[state.selected]) apply({ type: "race", race_key: state.selected, detail: f.races[state.selected] });
       i++;
     };
@@ -103,7 +106,8 @@
     const matched = b.reduce((s, r) => s + (r.bf_total_matched || 0), 0);
     $("s-matched").textContent = matched ? money(matched) : "–";
     const next = [...b].filter((r) => r.status === "OPEN").sort((a, z) => new Date(a.start_time) - new Date(z.start_time))[0] || b[0];
-    $("s-next").textContent = next ? ttg(next.start_time) : "–";
+    $("s-next").textContent = next ? ttg(next.start_time)
+      : (state.nextUp && state.nextUp.start_time ? ttg(state.nextUp.start_time) : "–");
   }
 
   // ---------- scorecard (signal hit-rate) ----------
@@ -118,13 +122,91 @@
       const roi = d.roi, pnl = d.profit;
       return `<tr title="${d.bets || 0} bets · bank $${d.bankroll}"><td>${label} <span class="sn">${d.n}</span></td><td>${d.win_pct != null ? d.win_pct + "%" : "–"}</td><td class="${roi != null ? sign(roi) : "mut"}">${roi != null ? (roi > 0 ? "+" : "") + roi + "%" : "–"}</td><td class="${pnl != null ? sign(pnl) : "mut"}">${pnl != null ? (pnl >= 0 ? "+$" : "−$") + Math.abs(pnl).toFixed(0) : "–"}</td></tr>`;
     };
-    el.innerHTML = `<div class="bankline">flat $${s.stake} bets · $${s.bankroll} bank · best price</div>
+    el.innerHTML = `<div class="bankline">½-Kelly stakes · $${s.bankroll} bank · edge @ best price</div>
       <table class="scoretbl"><thead><tr><th></th><th>WIN</th><th>ROI</th><th>P&amp;L</th></tr></thead><tbody>
       ${row("PICK", s.pick)}
       ${row('<span class="up">✓</span> CONF', s.confirmed)}
       ${row('<span class="amberh">◆</span> VALUE', s.value)}
       ${row("FAV", s.favourite)}
     </tbody></table>`;
+  }
+
+  // ---------- follower ledger (committed, immutable, ½-Kelly) ----------
+  function renderFollows() {
+    const el = $("follows"); if (!el) return;
+    const f = state.follows;
+    const cnt = $("follow-count");
+    if (!f || !f.n) {
+      el.innerHTML = `<div class="noscore">no committed selections yet · strict bar: ≥3✓ + value</div>`;
+      if (cnt) cnt.textContent = "";
+      return;
+    }
+    if (cnt) cnt.textContent = f.n + (f.pending ? " · " + f.pending + " live" : "");
+    const sign = (x) => (x > 0 ? "up" : x < 0 ? "down" : "mut");
+    const CODE = { R: "R", G: "G", H: "H" };
+    const st = (e) => {
+      if (e.status === "won") return `<span class="fl-won">WON</span>`;
+      if (e.status === "lost") return `<span class="fl-lost">LOST</span>`;
+      if (e.status === "void") return `<span class="fl-void">VOID</span>`;
+      return `<span class="fl-pend">● LIVE</span>`;
+    };
+    // LIVE = committed, race not yet resolved; DONE = settled (won/lost/void).
+    const ff = state.followFilter;
+    const entries = (f.entries || []).filter((e) =>
+      ff === "LIVE" ? e.status === "pending" : ff === "DONE" ? e.status !== "pending" : true);
+    const rows = entries.map((e) => {
+      const venue = esc(e.venue || "") + (e.race_no ? " R" + e.race_no : "");
+      const pnl = e.pnl;
+      const pnlCell = pnl == null ? "" :
+        `<span class="${sign(pnl)}">${pnl >= 0 ? "+$" : "−$"}${Math.abs(pnl).toFixed(2)}</span>`;
+      return `<div class="fl-row">
+        <div class="fl-sel"><span class="code ${e.code || "R"}">${CODE[e.code] || "?"}</span>
+          <b>${e.number}. ${esc(e.selection || "")}</b>
+          <span class="fl-meta">${venue} · @${e.entry_price} · ${e.confirm || ""}✓ · +${e.edge_pct}%</span></div>
+        <div class="fl-right"><span class="fl-stake">$${(e.stake || 0).toFixed(2)}</span> ${st(e)} ${pnlCell}</div>
+      </div>`;
+    }).join("");
+    const roi = f.roi, prof = f.profit;
+    const bankline = `<div class="bankline">
+      $${f.current_bankroll} bank
+      ${roi != null ? ` · <span class="${sign(roi)}">ROI ${roi > 0 ? "+" : ""}${roi}%</span>` : ""}
+      ${prof != null && f.staked ? ` · <span class="${sign(prof)}">${prof >= 0 ? "+$" : "−$"}${Math.abs(prof).toFixed(0)}</span>` : ""}
+      ${f.clv_pct != null ? ` · <span class="${sign(f.clv_pct)}">CLV ${f.clv_pct > 0 ? "+" : ""}${f.clv_pct}%</span>` : ""}
+      · <span class="mut">${f.won || 0}W ${f.lost || 0}L</span>
+    </div>`;
+    el.innerHTML = bankline + (rows
+      ? `<div class="fl-list">${rows}</div>`
+      : `<div class="noscore">${ff === "LIVE" ? "no live selections — all settled" : "no settled selections yet"}</div>`);
+  }
+
+  // ---------- predicted firmers (heuristic, experimental) ----------
+  function renderFirm() {
+    const el = $("firm"); if (!el) return;
+    const list = state.firm || [];
+    const cnt = $("firm-count");
+    if (!list.length) {
+      el.innerHTML = `<div class="noscore">no strong firm-signals right now</div>`;
+      if (cnt) cnt.textContent = "";
+      return;
+    }
+    if (cnt) cnt.textContent = list.length;
+    const CODE = { R: "R", G: "G", H: "H" };
+    const tierCls = (t) => (t === "STRONG" ? "fp-strong" : t === "WARM" ? "fp-warm" : "fp-lean");
+    el.innerHTML = list.map((p) => {
+      const pct = Math.round((p.score || 0) * 100);
+      const fac = p.factors || {};
+      const price = p.corp_best ? `@${p.corp_best}` : "";
+      return `<div class="fp-row" data-key="${esc(p.race_key)}" title="market ${fac.market} · form ${fac.form} · tips ${fac.consensus} · mom ${fac.momentum}">
+        <span class="code ${p.code || "R"}">${CODE[p.code] || "?"}</span>
+        <div class="fp-main">
+          <div class="fp-top"><b>${p.number}. ${esc(p.runner || "")}</b>
+            <span class="fp-tier ${tierCls(p.tier)}">${p.tier}</span></div>
+          <div class="fp-meta">${esc(p.venue || "")} R${p.race_no} · ${ttg(p.start_time)} ${price}${p.confirm ? " · " + p.confirm + "✓" : ""}</div>
+        </div>
+        <div class="fp-score"><div class="fp-bar"><i style="width:${pct}%"></i></div><span>${pct}</span></div>
+      </div>`;
+    }).join("");
+    el.querySelectorAll(".fp-row").forEach((r) => r.addEventListener("click", () => select(r.dataset.key)));
   }
 
   // ---------- ticker tape (money in) ----------
@@ -148,7 +230,16 @@
     const el = $("board");
     const rows = state.board.filter((r) => state.codeFilter === "ALL" || r.code === state.codeFilter);
     $("board-count").textContent = rows.length || "";
-    if (!rows.length) { el.innerHTML = `<div class="brow"><span class="flatc mono">waiting…</span></div>`; return; }
+    if (!rows.length) {
+      const n = state.nextUp;
+      if (n && n.start_time) {
+        const at = new Date(n.start_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        el.innerHTML = `<div class="brow"><span class="flatc mono">quiet — next: ${esc(n.venue || "")} R${n.race_no} at ${at} (${ttg(n.start_time)}) · on board ~2h out</span></div>`;
+      } else {
+        el.innerHTML = `<div class="brow"><span class="flatc mono">waiting…</span></div>`;
+      }
+      return;
+    }
     el.innerHTML = rows.map((r) => {
       const p = r.pick;
       const soon = (new Date(r.start_time) - Date.now()) < 5 * 60000;
@@ -423,6 +514,25 @@
     state.codeFilter = b.dataset.code;
     document.querySelectorAll("#code-filters button").forEach((x) => x.classList.toggle("active", x === b));
     renderBoard();
+  });
+  document.querySelectorAll(".ff-group button").forEach((b) => {
+    b.onclick = () => {
+      state.followFilter = b.dataset.ff;
+      document.querySelectorAll(".ff-group button").forEach((x) => x.classList.toggle("on", x === b));
+      renderFollows();
+    };
+  });
+  // Collapsible left panels: click a title to fold to header-only; remembered.
+  try {
+    JSON.parse(localStorage.getItem("mf-collapsed") || "[]").forEach((k) =>
+      document.querySelector(`.panel[data-panel="${k}"]`)?.classList.add("collapsed"));
+  } catch {}
+  document.querySelectorAll('.col.left .panel[data-panel] > header h2').forEach((h) => {
+    h.addEventListener("click", () => {
+      h.closest(".panel").classList.toggle("collapsed");
+      const collapsed = [...document.querySelectorAll(".panel.collapsed")].map((p) => p.dataset.panel);
+      localStorage.setItem("mf-collapsed", JSON.stringify(collapsed));
+    });
   });
   const th = localStorage.getItem("mf-theme");
   if (th) document.documentElement.setAttribute("data-theme", th);

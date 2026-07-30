@@ -8,10 +8,12 @@ snapshot with derived movement fields filled in. Also computes the cross-race
 
 from __future__ import annotations
 
+import time as _time
 from collections import deque
 from typing import Any
 
 from .config import settings, CODE_LABEL
+from .firm.heuristic import firm_scores
 from .models import RaceRef, RaceSnapshot
 
 
@@ -127,10 +129,22 @@ class Store:
     # ---- views for the API ----
 
     def board(self) -> list[dict[str, Any]]:
-        """One row per race for the overview board, sorted by start time."""
+        """One row per race for the overview board, sorted by start time. Races are
+        tracked up to 30 min past the jump (so results settle the ledger/outcomes),
+        but the board hides them once resulted for >5 min — jumped races shouldn't
+        clutter the top of the list."""
+        from datetime import datetime as _dt
+        now = _time.time()
         rows = []
         for st in self.races.values():
             snap = st.latest
+            if snap and snap.results:
+                try:
+                    ep = _dt.fromisoformat(st.ref.start_time.replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    ep = now
+                if now - ep > 300:
+                    continue
             fav = pick = None
             n_conf = 0
             if snap:
@@ -231,6 +245,42 @@ class Store:
         out.sort(key=lambda x: x["value_pct"], reverse=True)
         return out[:limit]
 
+    def firm(self, limit: int = 12) -> list[dict[str, Any]]:
+        """Heuristic PREDICTED FIRMERS across all open races — runners the rule-based
+        firm-score rates most likely to shorten before the jump (experimental; the
+        baseline the ML model must beat). Distinct from `movers` (already happening)."""
+        out = []
+        for st in self.races.values():
+            snap = st.latest
+            if not snap or snap.status != "OPEN":
+                continue
+            active = [r for r in snap.runners if not r.scratched]
+            if len(active) < 2:
+                continue
+            dicts = [{
+                "number": r.number, "scratched": False,
+                "corp_best": r.corp_best, "fixed_win": r.fixed_win, "tote_win": r.tote_win,
+                "form_rating": r.form_rating, "best_bet": r.best_bet, "direction": r.direction,
+            } for r in active]
+            tip_nums = set((snap.tips or {}).get("numbers") or [])
+            scores = firm_scores(dicts, tip_nums)
+            by_num = {r.number: r for r in active}
+            for num, s in scores.items():
+                if s["tier"] == "—":
+                    continue
+                r = by_num[num]
+                out.append({
+                    "race_key": st.ref.race_key, "venue": st.ref.venue,
+                    "code": st.ref.code, "race_no": st.ref.race_no,
+                    "start_time": st.ref.start_time,
+                    "number": num, "runner": r.name,
+                    "score": s["score"], "tier": s["tier"], "factors": s["factors"],
+                    "corp_best": r.corp_best, "fair_price": r.fair_price,
+                    "direction": r.direction, "confirm": _confirm_count(r),
+                })
+        out.sort(key=lambda x: x["score"], reverse=True)
+        return out[:limit]
+
     def race_detail(self, race_key: str) -> dict[str, Any] | None:
         st = self.races.get(race_key)
         if st is None or st.latest is None:
@@ -253,6 +303,7 @@ class Store:
             "tips": snap.tips,
             "comment": snap.comment,
             "results": snap.results,
+            "winners": snap.winners,
             "pick": _pick(active),
             "runners": [
                 {

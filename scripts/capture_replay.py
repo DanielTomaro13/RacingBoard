@@ -50,7 +50,10 @@ async def capture(n_frames: int, spacing: float, out: Path) -> None:
             "board": store.board(),
             "movers": store.movers(),
             "value": store.value(),
+            "firm": store.firm(),
+            "training": poller.training,
             "scores": poller.scorer.stats(),
+            "follows": poller.follow.stats(),
             "races": races,
         })
         print(f"frame {f + 1}/{n_frames}: {len(frames[-1]['board'])} races, "

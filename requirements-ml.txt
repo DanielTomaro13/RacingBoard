@@ -1,0 +1,8 @@
+# Offline training stack for the firm-prediction model (moneyflow/firm/).
+# Deliberately separate from requirements.txt: the live server must never need
+# these — training/eval run as offline scripts only.
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.5
+lightgbm>=4.3
+pyarrow>=17

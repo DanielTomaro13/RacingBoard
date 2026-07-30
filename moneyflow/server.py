@@ -95,7 +95,15 @@ async def health() -> JSONResponse:
 
 @app.get("/api/board")
 async def api_board() -> JSONResponse:
-    return JSONResponse({"board": store.board(), "movers": store.movers(), "value": store.value(), "scores": poller.scorer.stats()})
+    return JSONResponse({"board": store.board(), "movers": store.movers(), "value": store.value(),
+                         "firm": store.firm(), "next_up": poller.next_up,
+                         "scores": poller.scorer.stats(), "follows": poller.follow.stats()})
+
+
+@app.get("/api/training")
+async def api_training() -> JSONResponse:
+    """Dataset / heuristic-record / last-train status for the DATA & MODEL page."""
+    return JSONResponse({"training": poller.training})
 
 
 @app.get("/api/race/{race_key:path}")
@@ -112,7 +120,9 @@ async def ws_endpoint(ws: WebSocket) -> None:
     await hub.add(ws)
     # Send an immediate snapshot so a fresh client isn't blank until next tick.
     await ws.send_text(json.dumps(
-        {"type": "board", "board": store.board(), "movers": store.movers(), "value": store.value(), "scores": poller.scorer.stats()},
+        {"type": "board", "board": store.board(), "movers": store.movers(), "value": store.value(),
+         "firm": store.firm(), "next_up": poller.next_up,
+         "scores": poller.scorer.stats(), "follows": poller.follow.stats()},
         default=str,
     ))
     try:

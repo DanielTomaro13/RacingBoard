@@ -19,8 +19,12 @@ from .config import settings
 from .best_bets import BestBets
 from .betr_movers import BetrMovers
 from .corporate import CorporateSource
+from .datalog import DataLogger
+from .db import DB
 from .engine import SportsDataEngine
+from .follow import FollowLedger
 from .form import FormSource
+from .notify import DiscordNotifier
 from .scorer import Scorer
 from .sources import (
     BetfairMatcher,
@@ -45,6 +49,16 @@ class Poller:
         self.betr = BetrMovers() if settings.enable_corporate else None
         self.best_bets = BestBets() if settings.enable_corporate else None
         self.scorer = Scorer(settings.scores_path)
+        self.follow = FollowLedger(settings.follow_path)
+        self.notifier = DiscordNotifier(settings.discord_webhook) if settings.discord_webhook else None
+        if self.notifier:
+            self.follow.on_event = self.notifier.enqueue
+        self.db = DB(settings.db_path) if settings.enable_datalog else None
+        self.datalog = DataLogger(self.db) if self.db else None
+        # Slow-changing training/model status for the site — refreshed on the
+        # discovery cadence, never per-broadcast (it queries the whole DB).
+        self.training: dict | None = self.datalog.overview() if self.datalog else None
+        self.next_up: dict | None = None   # earliest race beyond the horizon
         self._active_keys: list[str] = []
         self._running = False
 
@@ -54,6 +68,8 @@ class Poller:
 
     async def start(self) -> None:
         self._running = True
+        if self.notifier:
+            self.notifier.start()   # queue worker needs the running loop
         await self._discover_once()  # prime before serving
         loops = [self._discovery_loop(), self._price_loop()]
         if self.betfair:
@@ -66,6 +82,10 @@ class Poller:
         self._running = False
         if self.betfair:
             await self.betfair.aclose()
+        if self.notifier:
+            await self.notifier.stop()
+        if self.db:
+            self.db.close()
 
     # ---- discovery ----
 
@@ -79,20 +99,39 @@ class Poller:
 
     async def _discover_once(self) -> None:
         date = self._today()
-        races = await discover_races(self.engine, date)
-        if races is None:
-            # Discovery fetch failed — keep the board rather than wiping it, but
-            # still drop races well past the jump so a sustained outage can't grow
-            # the tracked set unbounded.
+        res = await discover_races(self.engine, date)
+        if res is None:
+            # Discovery fetch failed — keep the board (and the next-up hint) rather
+            # than wiping them, but still drop races well past the jump so a
+            # sustained outage can't grow the tracked set unbounded.
             print("[discovery] fetch failed; keeping tracked races (dropping long-jumped)")
             self._prune_stale()
             return
+        races, self.next_up = res
         for ref in races:
             self.store.upsert_ref(ref)
 
-        # Track the nearest-to-jump races at full cadence.
+        # Track the nearest-to-jump races at full cadence — PLUS any already-jumped
+        # race whose result hasn't arrived yet. Those must stay polled or the
+        # ledger/scorecard/outcomes never settle (results post minutes after the off).
         races.sort(key=lambda r: r.start_time)
-        active = races[: settings.max_active_races]
+        now = time.time()
+
+        def _ep(r) -> float:
+            try:
+                return datetime.fromisoformat(r.start_time.replace("Z", "+00:00")).timestamp()
+            except Exception:
+                return now
+
+        upcoming = [r for r in races if _ep(r) > now - 120]
+        awaiting = []
+        for r in races:
+            if _ep(r) > now - 120:
+                continue
+            st = self.store.races.get(r.race_key)
+            if st is None or st.latest is None or not st.latest.results:
+                awaiting.append(r)   # jumped, no result yet — keep polling
+        active = awaiting[:15] + upcoming[: settings.max_active_races]
         self._active_keys = [r.race_key for r in active]
 
         # Build / refresh Betfair market index and stamp market ids onto refs.
@@ -118,6 +157,17 @@ class Poller:
         if self.corporate:
             self.corporate.prune(keep)
         self.form.prune(keep)
+        if self.datalog:
+            self.datalog.prune(keep)
+            try:
+                self.training = self.datalog.overview()
+            except Exception as exc:
+                print(f"[datalog] overview error: {exc}")
+        # Settle any ledger entry whose race resolved after it left the board.
+        try:
+            await self.follow.reconcile(self.engine)
+        except Exception as exc:
+            print(f"[follow] reconcile error: {exc}")
         print(f"[discovery] {len(races)} races tracked, {len(active)} active @ {time.strftime('%H:%M:%S')}")
 
     def _prune_stale(self) -> None:
@@ -136,6 +186,8 @@ class Poller:
         if self.corporate:
             self.corporate.prune(keep)
         self.form.prune(keep)
+        if self.datalog:
+            self.datalog.prune(keep)
 
     # ---- prices ----
 
@@ -151,10 +203,17 @@ class Poller:
         keys = list(self._active_keys)
         # Snapshot each active race concurrently (bounded by upstream rate limits
         # inside the engine / Betfair client).
-        await asyncio.gather(*(self._poll_race(k) for k in keys))
+        # return_exceptions: one race's fault must not abort the others' snapshots
+        # nor the board broadcast for this cycle.
+        results = await asyncio.gather(*(self._poll_race(k) for k in keys), return_exceptions=True)
+        for k, res in zip(keys, results):
+            if isinstance(res, Exception):
+                print(f"[price] {k} poll error: {res}")
         if self.broadcast:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers(), "value": self.store.value(), "scores": self.scorer.stats()})
+                                  "movers": self.store.movers(), "value": self.store.value(),
+                                  "firm": self.store.firm(), "next_up": self.next_up,
+                                  "scores": self.scorer.stats(), "follows": self.follow.stats()})
 
     async def _poll_race(self, race_key: str) -> None:
         st = self.store.races.get(race_key)
@@ -202,7 +261,15 @@ class Poller:
 
         detail = self.store.race_detail(race_key)
         if detail:
-            self.scorer.observe(race_key, detail)   # grade signals as races resolve
+            # Bookkeeping consumers must never break the poll cycle for a race.
+            for name, obs in (("scorer", self.scorer), ("follow", self.follow),
+                              ("datalog", self.datalog)):
+                if obs is None:
+                    continue
+                try:
+                    obs.observe(race_key, detail)
+                except Exception as exc:
+                    print(f"[{name}] observe error for {race_key}: {exc}")
             if self.broadcast and self._is_viewed(race_key):
                 await self.broadcast({"type": "race", "race_key": race_key, "detail": detail})
 
@@ -253,7 +320,9 @@ class Poller:
 
         if self.broadcast and updated:
             await self.broadcast({"type": "board", "board": self.store.board(),
-                                  "movers": self.store.movers(), "value": self.store.value(), "scores": self.scorer.stats()})
+                                  "movers": self.store.movers(), "value": self.store.value(),
+                                  "firm": self.store.firm(), "next_up": self.next_up,
+                                  "scores": self.scorer.stats(), "follows": self.follow.stats()})
             # Only build+send the heavy per-runner detail for races clients are
             # actually viewing — not all ~24 active markets every 3s.
             for key in updated:

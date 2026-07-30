@@ -6,7 +6,7 @@
   <title>RacingBoard Terminal — live money flow</title>
   <meta name="description" content="Bloomberg-style live terminal for racing money flow — which runners are shortening (money coming in), a recommended pick per race, fair price & value across Sportsbet/Pointsbet/Betfair." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a0c'/%3E%3Cpath d='M5 21 L13 13 L18 17 L27 7' stroke='%23ffb000' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <div class="topbar">
@@ -19,6 +19,7 @@
     <span class="spacer"></span>
     <span class="pill"><span id="conn" class="dot"></span><b id="conn-label">CONNECTING</b></span>
     <span id="clock" class="clock"></span>
+    <a href="model.html" class="icon-btn" title="Data &amp; model">🧠</a>
     <button id="alerts" class="icon-btn" title="Alert on strong steam (✓✓✓+)">🔔</button>
     <button id="theme" class="icon-btn" title="Theme">◐</button>
   </div>
@@ -33,12 +34,19 @@
 
   <main>
     <div class="col left">
-      <section class="panel">
+      <section class="panel" data-panel="scorecard">
         <header><h2>SCORECARD</h2><span class="sub">win% · ROI · P&amp;L vs result</span><span class="count" id="score-races"></span></header>
         <div id="scores" class="scores"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-panel="following">
+        <header><h2>🔒 FOLLOWING</h2><span class="sub">committed · permanent · ½-Kelly</span>
+          <span class="ff-group"><button class="mini-toggle on" data-ff="ALL">ALL</button><button class="mini-toggle" data-ff="LIVE">LIVE</button><button class="mini-toggle" data-ff="DONE">DONE</button></span>
+          <span class="count" id="follow-count"></span></header>
+        <div id="follows" class="follows"></div>
+      </section>
+
+      <section class="panel" data-panel="races">
         <header><h2>RACES</h2><span class="sub">nearest jump · live pick</span><span class="count" id="board-count"></span></header>
         <div class="filters" id="code-filters">
           <button data-code="ALL" class="active">ALL</button>
@@ -49,9 +57,14 @@
         <div id="board" class="board scroll"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-panel="signals">
         <header><h2><span class="up">▲ MONEY</span> <span class="amberh">◆ VALUE</span></h2><span class="sub">firming &amp; overlays</span><button id="conf-filter" class="mini-toggle" title="Show only confirmed (2+ markets)">✓ only</button><span class="count" id="signals-count"></span></header>
         <div id="signals" class="firmers scroll"></div>
+      </section>
+
+      <section class="panel" data-panel="firm">
+        <header><h2>🔮 PREDICTED FIRMERS</h2><span class="sub">heuristic · who'll shorten · <em>experimental</em></span><span class="count" id="firm-count"></span></header>
+        <div id="firm" class="firmpred scroll"></div>
       </section>
     </div>
 
@@ -65,6 +78,6 @@
   <footer>RACINGBOARD TERMINAL · money-in = tote pool share rising / price shortening · <a href="https://github.com/DanielTomaro13/RacingBoard" target="_blank" rel="noopener">SOURCE</a></footer>
 
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

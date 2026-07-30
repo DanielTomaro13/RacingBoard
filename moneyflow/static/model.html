@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RacingBoard — Data &amp; Model</title>
+  <meta name="description" content="Firm-prediction pipeline status: training data collected, heuristic accuracy, latest model run vs the market baseline." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a0c'/%3E%3Cpath d='M5 21 L13 13 L18 17 L27 7' stroke='%23ffb000' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css?v=5" />
+  <style>
+    /* This page is a normal scrolling document — undo the terminal's viewport lock. */
+    body { display: block; height: auto; min-height: 100vh; overflow: auto; }
+    .mwrap { max-width: 860px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; padding: 10px; }
+    .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; }
+    .stat b { display: block; font-family: var(--mono); font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .stat span { font-family: var(--mono); font-size: 8.5px; letter-spacing: .6px; color: var(--muted); }
+    .mtbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .mtbl th { font-size: 8.5px; letter-spacing: .5px; color: var(--muted); text-align: right; padding: 4px 10px; font-weight: 400; border-bottom: 1px solid var(--line); }
+    .mtbl th:first-child, .mtbl td:first-child { text-align: left; }
+    .mtbl td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--line); color: var(--ink2); }
+    .verdict { font-family: var(--mono); font-size: 13px; padding: 10px 12px; }
+    .verdict .up { color: var(--up); font-weight: 800; }
+    .prose { font-size: 12px; line-height: 1.55; color: var(--ink2); padding: 4px 12px 12px; }
+    .prose b { color: var(--ink); }
+    .prose .mut { color: var(--muted); }
+    .up { color: var(--up); } .down { color: var(--down); } .mut { color: var(--muted); }
+    a.icon-btn { text-decoration: none; display: inline-flex; align-items: center; white-space: nowrap; width: auto; padding: 4px 10px; font-family: var(--mono); font-size: 10px; letter-spacing: .5px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="logo">▟</span> RACING<span class="accent">BOARD</span><span class="term">DATA &amp; MODEL</span></div>
+    <div class="spacer"></div>
+    <a href="index.html" class="icon-btn" title="Back to the terminal">← TERMINAL</a>
+  </div>
+
+  <main class="mwrap">
+    <section class="panel">
+      <header><h2>📦 TRAINING SET</h2><span class="sub">forward-collected from the live board · AU/NZ only</span><span class="count" id="upd"></span></header>
+      <div class="mgrid" id="counts"></div>
+      <div class="prose">Every tracked race is snapshotted at fixed marks before the jump (T‑120 … T‑2 min) — price, tote share, Betfair weight-of-money, form, tips — and labelled after the race with what actually happened: did the price <b>firm</b> (shorten ≥8% to the jump), and did the runner win. This grows daily; the model needs <b>weeks</b> of it.</div>
+      <div id="coverage"></div>
+      <div class="prose"><span class="mut">Coverage per capture mark: how many runner-snapshots exist at each minutes-before-jump bucket, and how many are already labelled with a result. The far-out buckets (T‑120/T‑90) fill slowest — a race is only tracked once it enters the 2-hour window.</span></div>
+    </section>
+
+    <section class="panel">
+      <header><h2>📡 LIVE REFLECTION</h2><span class="sub">recent races — predicted firmer vs who actually closed</span><span class="count" id="today-line"></span></header>
+      <div id="reflection"></div>
+      <div class="prose"><span class="mut">Each row is a settled race: the runner the firm-score rated highest <b>before the race</b> (at the earliest capture mark), the price then vs where it <b>closed</b> at the jump, and whether it actually firmed / won. Green move = shortened as predicted.</span></div>
+    </section>
+
+    <section class="panel">
+      <header><h2>🔮 HEURISTIC TRACK RECORD</h2><span class="sub">the rule-based firm-score, graded on real outcomes</span></header>
+      <div id="tiers"></div>
+      <div class="prose"><span class="mut">Every heuristic prediction is logged at the time it's made and scored once the race resolves. <b>Lift</b> = tier firm-rate ÷ overall firm-rate — above 1× means the score finds firmers better than chance. This is the baseline the ML model has to beat.</span></div>
+    </section>
+
+    <section class="panel">
+      <header><h2>🧠 MODEL</h2><span class="sub">LightGBM · walk-forward validated · offline</span></header>
+      <div class="verdict" id="verdict"></div>
+      <div class="prose" id="mdetail"></div>
+      <div class="prose"><span class="mut">The model trains offline on the collected snapshots and is judged against backing the market's opening price out-of-sample (time-ordered split, isotonic-calibrated probabilities, half-Kelly ROI + closing-line-value backtest). It ships to the board <b>only</b> when it beats that baseline — until then the heuristic stands in.</span></div>
+    </section>
+  </main>
+
+  <footer>RACINGBOARD · DATA &amp; MODEL · refreshes every 60s · <a href="index.html">back to the terminal</a></footer>
+
+  <script src="config.js"></script>
+  <script>
+    (() => {
+      const api = (window.MF_CONFIG && window.MF_CONFIG.apiBase) || "";
+      const $ = (id) => document.getElementById(id);
+      const k = (x) => (x == null ? "–" : x >= 10000 ? Math.round(x / 1000) + "k" : x >= 1000 ? (x / 1000).toFixed(1) + "k" : x);
+      async function load() {
+        let t = null;
+        try { t = (await (await fetch(api + "/api/training")).json()).training; } catch {}
+        if (!t) {
+          $("counts").innerHTML = `<div class="noscore">no live backend — run the server locally to see training status</div>`;
+          $("tiers").innerHTML = ""; $("verdict").textContent = ""; $("mdetail").textContent = "";
+          return;
+        }
+        const c = t.counts || {};
+        $("counts").innerHTML = [
+          ["races", c.races], ["snapshots", c.snapshots], ["labelled results", c.outcomes], ["logged predictions", c.predictions],
+        ].map(([l, v]) => `<div class="stat"><b>${k(v)}</b><span>${l.toUpperCase()}</span></div>`).join("");
+        $("upd").textContent = new Date().toLocaleTimeString("en-GB");
+
+        const cov = t.coverage || [];
+        $("coverage").innerHTML = cov.length
+          ? `<table class="mtbl"><thead><tr><th>MARK</th><th>SNAPSHOTS</th><th>RACES</th><th>LABELLED</th></tr></thead><tbody>${
+              cov.map((r) => `<tr><td>T−${r.offset_min}m</td><td>${k(r.rows)}</td><td>${k(r.races)}</td>
+                <td class="${r.labelled ? "" : "mut"}">${k(r.labelled)}</td></tr>`).join("")
+            }</tbody></table>`
+          : "";
+
+        const refl = t.reflection || {};
+        const td = refl.today || {};
+        $("today-line").textContent = td.races
+          ? `today: top pick firmed ${Math.round((td.top_firm_rate || 0) * 100)}% of ${td.races} races (base ${Math.round((td.base_firm_rate || 0) * 100)}%)`
+          : "";
+        const sim = refl.sim || null;
+        const simLine = sim && sim.bets
+          ? `<div class="verdict">½-Kelly on every top pick from <b>$${sim.start.toFixed(0)}</b> → bank <b class="${sim.profit >= 0 ? "up" : "down"}">$${sim.bank.toFixed(2)}</b>
+             · P&amp;L <b class="${sim.profit >= 0 ? "up" : "down"}">${sim.profit >= 0 ? "+" : "−"}$${Math.abs(sim.profit).toFixed(2)}</b>
+             · ROI <b class="${(sim.roi || 0) >= 0 ? "up" : "down"}">${sim.roi != null ? (sim.roi > 0 ? "+" : "") + sim.roi + "%" : "–"}</b>
+             <span class="mut">· ${sim.bets} bets over ${sim.races} races (edge-only staking)</span></div>`
+          : "";
+        const recent = refl.recent || [];
+        $("reflection").innerHTML = simLine + (recent.length
+          ? `<table class="mtbl"><thead><tr><th>JUMP</th><th>RACE</th><th>PREDICTED FIRMER</th><th>SCORE</th><th>@PRED</th><th>CLOSE</th><th>MOVE</th><th>STAKE</th><th>P&amp;L</th><th>FIRMED</th><th>WON</th></tr></thead><tbody>${
+              recent.map((r) => {
+                const jt = r.jump_time ? new Date(r.jump_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "–";
+                const mv = r.move_pct == null ? null : r.move_pct;
+                const mvCls = mv == null ? "mut" : mv <= -0.5 ? "up" : mv >= 0.5 ? "down" : "mut";
+                const pnl = r.pnl;
+                return `<tr><td>${jt}</td><td>${r.code} ${r.venue} R${r.race_no}</td>
+                  <td>#${r.number} ${r.name || ""}</td>
+                  <td>${Math.round((r.p_firm || 0) * 100)} <span class="mut">@T−${r.horizon_min}m</span></td>
+                  <td>${r.best_price ?? "–"}</td><td>${r.jump_price ?? "–"}</td>
+                  <td class="${mvCls}">${mv == null ? "–" : (mv > 0 ? "+" : "") + mv.toFixed(1) + "%"}</td>
+                  <td>${r.stake ? "$" + r.stake.toFixed(2) : '<span class="mut">no edge</span>'}</td>
+                  <td class="${pnl == null ? "mut" : pnl >= 0 ? "up" : "down"}">${pnl == null ? "–" : (pnl >= 0 ? "+$" : "−$") + Math.abs(pnl).toFixed(2)}</td>
+                  <td class="${r.firmed ? "up" : "mut"}">${r.firmed ? "✔" : "·"}</td>
+                  <td class="${r.won ? "up" : "mut"}">${r.won ? "🏆" : "·"}</td></tr>`;
+              }).join("")
+            }</tbody></table>`
+          : `<div class="noscore">fills as today's races settle…</div>`);
+
+        const tiers = t.tiers || {};
+        const order = ["STRONG", "WARM", "LEAN"];
+        const rows = order.filter((x) => tiers[x]).map((x) => {
+          const d = tiers[x];
+          const lift = t.base_firm_rate ? (d.firm_rate / t.base_firm_rate) : null;
+          return `<tr><td>${x}</td><td>${d.n}</td><td>${d.firm_rate == null ? "–" : Math.round(d.firm_rate * 100) + "%"}</td>
+            <td>${d.win_rate == null ? "–" : Math.round(d.win_rate * 100) + "%"}</td>
+            <td class="${lift != null && lift >= 1 ? "up" : "down"}">${lift == null ? "–" : lift.toFixed(1) + "×"}</td></tr>`;
+        }).join("");
+        $("tiers").innerHTML = rows
+          ? `<table class="mtbl"><thead><tr><th>TIER</th><th>N</th><th>FIRMED</th><th>WON</th><th>LIFT</th></tr></thead><tbody>${rows}</tbody></table>`
+          : `<div class="noscore">track record accrues as logged races resolve…</div>`;
+
+        const m = t.last_train;
+        if (m) {
+          $("verdict").innerHTML = m.beats_baseline
+            ? `<span class="up">✔ BEATS THE MARKET BASELINE</span> — candidate for serving`
+            : `below the market baseline — <span class="mut">expected while data accrues</span>`;
+          $("mdetail").innerHTML = `Last run: horizon <b>T−${m.horizon} min</b> · ${m.rows} training rows · firm-rate ${(m.firm_rate * 100).toFixed(1)}% · model AUC <b>${m.model_auc ?? "–"}</b> vs opening-price baseline <b>${m.b1_auc ?? "–"}</b> · trained ${new Date(m.trained_at * 1000).toLocaleString("en-GB")}${m.top_features ? `<br><span class="mut">strongest features: ${m.top_features.join(" · ")}</span>` : ""}`;
+        } else {
+          $("verdict").innerHTML = `<span class="mut">not trained yet — needs weeks of collected data</span>`;
+          $("mdetail").textContent = "";
+        }
+      }
+      load(); setInterval(load, 60000);
+    })();
+  </script>
+</body>
+</html>
