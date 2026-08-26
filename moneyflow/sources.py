@@ -89,10 +89,10 @@ async def discover_races(
         code = m.get("raceType")
         if code not in settings.codes:
             continue
-        # AU/NZ only — skip international meetings (USA/GBR/FRA/…). `location` is the
-        # meeting's state (NSW/VIC/…) or country code (NZL, and the excluded rest).
+        # `location` is the meeting's state (NSW/VIC/…) or country code. The
+        # default set is AU/NZ; MF_COUNTRIES=* admits every meeting TAB lists.
         location = m.get("location")
-        if location not in settings.countries:
+        if not settings.all_countries and location not in settings.countries:
             continue
         venue = m.get("meetingName", "")
         mnem = m.get("venueMnemonic", "")

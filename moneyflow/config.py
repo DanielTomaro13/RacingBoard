@@ -69,11 +69,17 @@ class Settings:
     # Racing codes to track: R=thoroughbred, G=greyhound, H=harness.
     codes: tuple[str, ...] = tuple(os.environ.get("MF_CODES", "R,G,H").split(","))
 
-    # Only track meetings in these locations (TAB meeting `location` code). AU/NZ
-    # only by design — the firm-prediction model is scoped to AU/NZ, and dropping
-    # thin overnight international pools (USA/GBR/FRA/…) also de-noises the board.
+    # Only track meetings in these locations (TAB meeting `location` code).
+    # Default AU/NZ: the firm-prediction model is scoped to AU/NZ, and dropping
+    # thin overnight international pools (USA/GBR/FRA/…) de-noises the board.
+    # MF_COUNTRIES=* tracks every meeting TAB lists; the model can re-scope at
+    # training time via races.country, so collecting wide costs nothing there.
     countries: frozenset[str] = frozenset(
         os.environ.get("MF_COUNTRIES", "NSW,VIC,QLD,SA,WA,TAS,NT,ACT,NZL").split(","))
+
+    @property
+    def all_countries(self) -> bool:
+        return "*" in self.countries
 
     # --- source toggles ---
     enable_betfair: bool = os.environ.get("MF_BETFAIR", "1") == "1"
