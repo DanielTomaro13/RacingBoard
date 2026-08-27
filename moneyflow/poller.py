@@ -177,11 +177,20 @@ class Poller:
         # Build / refresh Betfair market index and stamp market ids onto refs.
         if self.matcher and settings.enable_betfair:
             try:
-                await self.matcher.refresh_for(active)
-                for r in active:
+                # Index for EVERY race in the horizon, not just the active set:
+                # the meeting scan is cached per meeting, so covering the whole
+                # horizon costs a handful of extra calls once — while indexing
+                # only the active few left later races with no market id when
+                # their turn came, and the fast Betfair loop skips a race with
+                # no id (measured: exchange prices on 26 of 102 runners).
+                await self.matcher.refresh_for(races)
+                for r in races:
+                    st_r = self.store.races.get(r.race_key)
+                    if st_r is None:
+                        continue
                     mid = self.matcher.market_id_for(r)
                     if mid:
-                        self.store.races[r.race_key].ref.betfair_market_id = mid
+                        st_r.ref.betfair_market_id = mid
             except Exception as exc:
                 print(f"[discovery] betfair index error: {exc}")
 

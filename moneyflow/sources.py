@@ -35,16 +35,34 @@ def _norm_venue(name: str) -> str:
     return re.sub(r"[^a-z]", "", name)
 
 
-def _venue_compatible(a: str, b: str) -> bool:
-    """Equal, or one is a >=5-char prefix of the other.
+# Words that decorate a track name without identifying it. Stripping them
+# lets "SANDOWN PARK" match "Sandown", "THE MEADOWS" match "Meadows", and
+# "ASCOT RACECOURSE" match "Ascot" — half the corporate books' misses were
+# nothing but these.
+_VENUE_NOISE = {"park", "racecourse", "raceway", "racing", "club", "track",
+                "the", "greyhounds", "paceway", "showground", "downs"}
 
-    Handles TAB 'RICCARTON' vs Betfair 'Riccarton Park'. Kept strict enough
-    (>=5 chars, prefix only) to avoid matching unrelated tracks.
+
+def _venue_tokens(v: str) -> frozenset[str]:
+    return frozenset(w for w in v.replace("-", " ").split()
+                     if w and w not in _VENUE_NOISE)
+
+
+def _venue_compatible(a: str, b: str) -> bool:
+    """Same track under two books' spellings.
+
+    Equal, or a >=5-char prefix (TAB 'RICCARTON' vs Betfair 'Riccarton Park'),
+    or — new — the same identifying words once decoration is stripped, which
+    catches 'SANDOWN PARK'/'Sandown' and 'THE MEADOWS'/'Meadows'. Still strict:
+    the identifying tokens must match exactly, so unrelated tracks never pair.
     """
     if a == b:
         return True
     short, long = sorted((a, b), key=len)
-    return len(short) >= 5 and long.startswith(short)
+    if len(short) >= 5 and long.startswith(short):
+        return True
+    ta, tb = _venue_tokens(a), _venue_tokens(b)
+    return bool(ta) and ta == tb
 
 
 def _norm_runner(name: str) -> str:
