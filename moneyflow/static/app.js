@@ -71,9 +71,20 @@
     ws.onclose = () => { if (!opened) startReplay(); else { setMode("down"); setTimeout(liveConnect, 2500); } };
     window.__sub = (k) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "subscribe", race_key: k })); };
   }
+  let liveProbe = null;
   async function startReplay() {
     if (state.mode === "replay") return;
     setMode("replay");
+    // Replay is a fallback, not a destination: keep probing the backend and
+    // reconnect the moment it answers (one failed initial WebSocket used to
+    // strand the page in replay until a manual reload).
+    const apiTarget = qs.get("api") || cfg.apiBase;
+    if (apiTarget && !liveProbe) liveProbe = setInterval(async () => {
+      try {
+        const r = await fetch(apiTarget.replace(/^ws/, "http") + "/api/health");
+        if (r.ok) { clearInterval(liveProbe); liveProbe = null; location.reload(); }
+      } catch {}
+    }, 15000);
     let frames = [];
     try { frames = await (await fetch(qs.get("replay") || cfg.replayUrl || "data/replay.json")).json(); }
     catch { setMode("noreplay"); return; }
