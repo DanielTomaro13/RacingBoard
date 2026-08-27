@@ -141,6 +141,17 @@ async def ws_endpoint(ws: WebSocket) -> None:
                         {"type": "race", "race_key": req["race_key"], "detail": detail},
                         default=str,
                     ))
+                else:
+                    # A race in the horizon but outside the actively-polled set
+                    # (nearest MF_MAX_ACTIVE_RACES get live money data). Saying
+                    # so beats the old behaviour — silence, which left the
+                    # client's panel on "loading…" forever.
+                    await ws.send_text(json.dumps({
+                        "type": "race", "race_key": req["race_key"], "detail": None,
+                        "reason": "not in the live window yet — money data starts "
+                                  "once this race is among the next "
+                                  f"{settings.max_active_races} to jump",
+                    }))
     except WebSocketDisconnect:
         await hub.remove(ws)
     except Exception:

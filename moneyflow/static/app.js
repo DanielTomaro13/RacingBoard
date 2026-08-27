@@ -57,6 +57,7 @@
       }
     } else if (msg.type === "race") {
       state.details[msg.race_key] = msg.detail;
+      if (!msg.detail) state.detailReason = msg.reason || null;
       if (msg.race_key === state.selected) renderDetail();
     }
   }
@@ -316,7 +317,11 @@
   function renderDetail() {
     const d = state.details[state.selected];
     const el = $("detail");
-    if (!d) { el.innerHTML = `<div class="empty"><div class="big">▟</div>NO DATA FOR THIS RACE</div>`; return; }
+    if (!d) {
+      const why = state.detailReason || "no data for this race yet";
+      el.innerHTML = `<div class="empty"><div class="big">▟</div>${esc(why.toUpperCase())}</div>`;
+      return;
+    }
     const ref = d.ref, p = d.pick;
     const runners = d.runners.filter((r) => !r.scratched);
     const maxShare = Math.max(0.001, ...runners.map((r) => r.tote_pool_share || 0));
