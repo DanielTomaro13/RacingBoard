@@ -22,6 +22,7 @@ from .corporate import CorporateSource
 from .datalog import DataLogger
 from .db import DB
 from .engine import SportsDataEngine
+from .models import RaceRef
 from .follow import FollowLedger
 from .form import FormSource
 from .notify import DiscordNotifier
@@ -175,30 +176,49 @@ class Poller:
                     print(f"[census] {k}: {exc}")
 
         # Build / refresh Betfair market index and stamp market ids onto refs.
-        if self.matcher and settings.enable_betfair:
-            try:
-                # Index for EVERY race in the horizon, not just the active set:
-                # the meeting scan is cached per meeting, so covering the whole
-                # horizon costs a handful of extra calls once — while indexing
-                # only the active few left later races with no market id when
-                # their turn came, and the fast Betfair loop skips a race with
-                # no id (measured: exchange prices on 26 of 102 runners).
-                await self.matcher.refresh_for(races)
-                for r in races:
-                    st_r = self.store.races.get(r.race_key)
-                    if st_r is None:
-                        continue
-                    mid = self.matcher.market_id_for(r)
-                    if mid:
-                        st_r.ref.betfair_market_id = mid
-            except Exception as exc:
-                print(f"[discovery] betfair index error: {exc}")
-
-        # Refresh corporate-book indices (Sportsbet / Pointsbet) for the day.
+        # Corporate books FIRST: one cheap index call per book, and they used
+        # to sit behind the Betfair meeting scan. Cheap-and-broad before
+        # slow-and-deep — a book index should never queue behind an exchange
+        # crawl. (Measured afterwards: book coverage is dominated by WHICH
+        # meetings are in the horizon — AU/NZ ~100%, USA ~55%, CHL/CAN 0%
+        # because the AU books do not price them — not by this ordering. The
+        # ordering is still right; it just was not the lever I first blamed.)
         if self.corporate:
             await self.corporate.refresh_indices(self.engine, date)
         if self.best_bets:
             await self.best_bets.refresh(self.engine)
+
+        if self.matcher and settings.enable_betfair:
+            try:
+                # Index the whole horizon, not just the active set: the fast
+                # exchange loop skips any race without a market id, so races
+                # that entered the active window later never got prices
+                # (measured: 26 of 102 runners). Meeting scans are cached, so
+                # the extra breadth costs a handful of calls once — and it now
+                # runs AFTER the book indices, in its own task so a slow scan
+                # never delays the next discovery cycle.
+                async def _index_betfair(refs: list[RaceRef]) -> None:
+                    try:
+                        await self.matcher.refresh_for(refs)
+                        for r in refs:
+                            st_r = self.store.races.get(r.race_key)
+                            if st_r is None:
+                                continue
+                            mid = self.matcher.market_id_for(r)
+                            if mid:
+                                st_r.ref.betfair_market_id = mid
+                    except Exception as exc:
+                        print(f"[discovery] betfair index error: {exc}")
+
+                # active races synchronously (they need ids NOW), the rest in
+                # the background so the cycle returns promptly
+                near = [r for r in races if r.race_key in set(self._active_keys)]
+                far = [r for r in races if r.race_key not in set(self._active_keys)]
+                await _index_betfair(near)
+                if far:
+                    asyncio.create_task(_index_betfair(far))
+            except Exception as exc:
+                print(f"[discovery] betfair index error: {exc}")
 
         # Drop races that are well past the jump to keep memory bounded.
         keep = {r.race_key for r in races}
