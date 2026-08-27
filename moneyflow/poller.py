@@ -29,6 +29,8 @@ from .scorer import Scorer
 from .sources import (
     BetfairMatcher,
     apply_betfair_market,
+    betfair_bootstrap_snapshot,
+    discover_races_betfair,
     discover_races,
     finalize_snapshot,
     tab_snapshot,
@@ -101,13 +103,29 @@ class Poller:
         date = self._today()
         res = await discover_races(self.engine, date)
         if res is None:
-            # Discovery fetch failed — keep the board (and the next-up hint) rather
-            # than wiping them, but still drop races well past the jump so a
-            # sustained outage can't grow the tracked set unbounded.
-            print("[discovery] fetch failed; keeping tracked races (dropping long-jumped)")
-            self._prune_stale()
-            return
-        races, self.next_up = res
+            # TAB refused us. The exchange is public and keyless — fall back to
+            # Betfair's navigation graph so the board stays alive (money-only:
+            # no tote, no corporate prices, until the spine returns).
+            if self.betfair:
+                try:
+                    bf_races = await discover_races_betfair(
+                        self.betfair, settings.horizon_minutes)
+                except Exception as exc:
+                    bf_races = []
+                    print(f"[discovery] betfair fallback error: {exc}")
+                if bf_races:
+                    print(f"[discovery] TAB down — Betfair fallback tracking {len(bf_races)} races")
+                    races, self.next_up = bf_races, None
+                else:
+                    print("[discovery] fetch failed; keeping tracked races (dropping long-jumped)")
+                    self._prune_stale()
+                    return
+            else:
+                print("[discovery] fetch failed; keeping tracked races (dropping long-jumped)")
+                self._prune_stale()
+                return
+        else:
+            races, self.next_up = res
         for ref in races:
             self.store.upsert_ref(ref)
 
@@ -300,7 +318,8 @@ class Poller:
         id_to_key: dict[str, str] = {}
         for key in list(self._active_keys):
             st = self.store.races.get(key)
-            if st and st.latest and st.ref.betfair_market_id:
+            # latest may be None in TAB-down mode — the loop bootstraps those
+            if st and st.ref.betfair_market_id:
                 id_to_key[st.ref.betfair_market_id] = key
         if not id_to_key:
             return
@@ -312,7 +331,17 @@ class Poller:
                 for mkt in ev.get("marketNodes", []):
                     key = id_to_key.get(mkt.get("marketId"))
                     st = self.store.races.get(key) if key else None
-                    if not st or not st.latest:
+                    if not st:
+                        continue
+                    if not st.latest:
+                        # TAB-down mode: no tote snapshot exists — bootstrap one
+                        # from the exchange alone so the race has a board row.
+                        boot = betfair_bootstrap_snapshot(mkt)
+                        if boot is None:
+                            continue
+                        finalize_snapshot(boot)
+                        st.add(boot)
+                        updated.add(key)
                         continue
                     apply_betfair_market(st.latest, mkt)
                     finalize_snapshot(st.latest)   # fair/value depend on bf mids

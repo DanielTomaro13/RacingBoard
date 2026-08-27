@@ -406,3 +406,96 @@ def finalize_snapshot(snapshot: RaceSnapshot) -> None:
             edge = (r.corp_best * fp - 1.0) * 100.0
             if -60 < edge < 60:
                 r.value_pct = round(edge, 1)
+
+
+# ─── Betfair-spine fallback (TAB down) ──────────────────────────────────────
+#
+# TAB is the discovery spine; when its gate refuses us the board used to go
+# dark even though the exchange is public and keyless. This walks Betfair's
+# navigation graph instead: meetings → WIN markets (marketTime included), and
+# bootstraps runner lists from the exchange so the board runs Betfair-only —
+# no tote, no corporate prices, but live money and a working board.
+
+def _bf_venue(name: str) -> str:
+    """"Q2 Parklands (AUS) 27th Aug" → "Q2 PARKLANDS"."""
+    v = re.sub(r"\(.*?\)", "", name)
+    v = re.sub(r"\d+(st|nd|rd|th)\s+\w+\s*$", "", v)
+    return v.strip().upper()
+
+
+async def discover_races_betfair(
+    client: BetfairClient, horizon_minutes: int,
+) -> list[RaceRef]:
+    now = time.time()
+    horizon = now + horizon_minutes * 60
+    code_event = {"R": HORSE_RACING, "G": GREYHOUND_RACING}
+    races: list[RaceRef] = []
+    for code, etype in code_event.items():
+        try:
+            graph = await client.navigation(etype, attachments="MENU,EVENT",
+                                            max_out_distance=2, max_results=500)
+        except Exception:
+            continue
+        meetings = [n for n in graph.get("nodes", [])
+                    if n.get("nodeType") == "MENU"
+                    and (n.get("navInfo") or {}).get("isMeetingNode")]
+        for mn in meetings:
+            venue = _bf_venue(mn.get("name", ""))
+            if not venue:
+                continue
+            try:
+                g2 = await client.navigation(mn["nodeId"], attachments="MENU,EVENT,MARKET",
+                                             max_out_distance=3, max_results=1000)
+            except Exception:
+                continue
+            for n in g2.get("nodes", []):
+                info = n.get("marketInfo") or {}
+                if (n.get("nodeType") != "MARKET"
+                        or info.get("marketType", "").upper() != "WIN"):
+                    continue
+                mt = info.get("marketTime", "")
+                try:
+                    jump = dt_parse_iso(mt)
+                except Exception:
+                    continue
+                if not (now - 300 <= jump <= horizon):
+                    continue
+                num = re.search(r"\d+", (info.get("raceNumber") or "") + " "
+                                + (info.get("marketName") or ""))
+                if not num:
+                    continue
+                race_no = int(num.group())
+                date = mt[:10]
+                mnem = re.sub(r"[^A-Z]", "", venue)[:3] or "BFX"
+                races.append(RaceRef(
+                    race_key=f"{code}:{mnem}:{race_no}:{date}",
+                    code=code, venue=venue, venue_mnem=mnem, race_no=race_no,
+                    race_name=str(info.get("marketName") or ""),
+                    start_time=mt, date=date, location="BF",
+                    betfair_market_id=str(info["marketId"]),
+                ))
+    return races
+
+
+def dt_parse_iso(iso: str) -> float:
+    from datetime import datetime, timezone
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone.utc).timestamp()
+
+
+def betfair_bootstrap_snapshot(mkt: dict[str, Any]) -> RaceSnapshot | None:
+    """A RaceSnapshot from exchange data alone — runner numbers parsed from
+    Betfair's "1. Name" convention. Enough for the board's money view; tote
+    and corporate fields stay None until TAB returns."""
+    runners: list[RunnerFlow] = []
+    for i, run in enumerate(mkt.get("runners", []), start=1):
+        name = (run.get("description", {}) or {}).get("runnerName", "")
+        m = re.match(r"\s*(\d+)\.\s*(.+)", name)
+        number, clean = (int(m.group(1)), m.group(2)) if m else (i, name or f"Runner {i}")
+        state = run.get("state", {}) or {}
+        runners.append(RunnerFlow(number=number, name=clean,
+                                  scratched=str(state.get("status", "")).upper() == "REMOVED"))
+    if len(runners) < 2:
+        return None
+    snap = RaceSnapshot(ts=time.time(), runners=runners)
+    apply_betfair_market(snap, mkt)
+    return snap
