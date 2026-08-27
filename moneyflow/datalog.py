@@ -101,7 +101,7 @@ class DataLogger:
         # scored against outcomes exactly like the future ML model (= the baseline).
         scores = firm_scores(runners, tip_nums)
         self.db.insert_predictions([
-            (race_key, num, target, s["score"], "heuristic_v1", ts)
+            (race_key, num, target, s["score"], "heuristic_v1.1", ts)
             for num, s in scores.items()])
         done.add(target)
 
