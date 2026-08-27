@@ -261,6 +261,7 @@ class Store:
                 "number": r.number, "scratched": False,
                 "corp_best": r.corp_best, "fixed_win": r.fixed_win, "tote_win": r.tote_win,
                 "form_rating": r.form_rating, "best_bet": r.best_bet, "direction": r.direction,
+                "bf_wom": r.bf_wom, "share_delta": r.share_delta,
             } for r in active]
             tip_nums = set((snap.tips or {}).get("numbers") or [])
             scores = firm_scores(dicts, tip_nums)

@@ -7,28 +7,39 @@ it is the baseline the LightGBM model must beat out-of-sample (B-heuristic in th
 plan). Every input is knowable ≥1hr out; the score is deliberately simple and
 explainable — a weighted blend of the firming precursors the tool already trusts:
 
-  market respect  (favouritism — money already rates it)   w=0.45
-  recent form     (TAB form rating, field-relative)         w=0.35
-  consensus       (tipped / expert best-bet)                w=0.20
-  × momentum adj  (already firming ↑, already drifting ↓)
+  market respect  (favouritism — money already rates it)   w=0.35
+  recent form     (TAB form rating, field-relative)         w=0.25
+  money flow      (Betfair WoM + pool-share momentum)       w=0.25
+  consensus       (tipped / expert best-bet)                w=0.15
+  × momentum adj  (graded by pool-share delta, not binary)
 
-Connections (jockey/trainer strike-rate) are intentionally omitted in v1 — no data
-join yet — and are the first thing to add. Returns a 0–1 score + a tier + the factor
-breakdown, so the panel and any later evaluation can see exactly why.
+v1.1 adds the money-flow factor: Betfair weight-of-money (backers stacking a
+runner's queue precede a shorten — the same signal the confirmation ticks
+trust) blended with the tote pool-share delta since open. The momentum
+multiplier is now graded by the size of the share move instead of a flat
+firming/drifting step. Everything stays knowable pre-jump, pure, and fully
+explained in the factors breakdown — the DataLogger records the same fields,
+so the LightGBM model trains on exactly what the heuristic sees.
+
+Connections (jockey/trainer strike-rate) remain the next add — no data join yet.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-W_MARKET = 0.45
-W_FORM = 0.35
-W_CONSENSUS = 0.20
+W_MARKET = 0.35
+W_FORM = 0.25
+W_FLOW = 0.25
+W_CONSENSUS = 0.15
 
 # Momentum adjustment: a runner already firming is more likely to keep firming; one
-# already drifting against the market is less likely to turn.
+# already drifting against the market is less likely to turn. Graded: the flat
+# step is the floor/ceiling, the pool-share delta scales within it.
 ADJ_FIRMING = 1.10
 ADJ_DRIFTING = 0.75
+# A share move of this much (absolute) saturates the graded adjustment.
+_SHARE_SAT = 0.04
 
 TIERS = ((0.66, "STRONG"), (0.48, "WARM"), (0.32, "LEAN"))
 
@@ -74,15 +85,30 @@ def firm_scores(runners: list[dict[str, Any]], tip_numbers: set[int] | None = No
             f = 0.5
         c = min(1.0, (0.6 if num in tip_numbers else 0.0) + (0.4 if r.get("best_bet") else 0.0))
 
-        base = W_MARKET * m + W_FORM * f + W_CONSENSUS * c
+        # Money flow: WoM is the fraction of queued exchange money on the back
+        # side (0.5 = balanced; backers stacking above it precede a shorten),
+        # blended with the pool-share delta since open. Missing data = neutral.
+        wom = r.get("bf_wom")
+        wom_sig = max(0.0, min(1.0, (wom - 0.5) * 2 + 0.5)) if wom is not None else 0.5
+        sd = r.get("share_delta")
+        sd_sig = max(0.0, min(1.0, sd / _SHARE_SAT * 0.5 + 0.5)) if sd is not None else 0.5
+        flow = 0.6 * wom_sig + 0.4 * sd_sig
+
+        base = W_MARKET * m + W_FORM * f + W_FLOW * flow + W_CONSENSUS * c
         direction = r.get("direction")
-        adj = ADJ_FIRMING if direction == "firming" else ADJ_DRIFTING if direction == "drifting" else 1.0
+        if direction in ("firming", "drifting") and sd is not None:
+            # graded: a whisper of movement nudges, a surge saturates
+            g = max(0.0, min(1.0, abs(sd) / _SHARE_SAT))
+            adj = 1.0 + (ADJ_FIRMING - 1.0) * g if direction == "firming"                 else 1.0 - (1.0 - ADJ_DRIFTING) * g
+        else:
+            adj = ADJ_FIRMING if direction == "firming" else ADJ_DRIFTING if direction == "drifting" else 1.0
         score = max(0.0, min(1.0, base * adj))
 
         out[num] = {
             "score": round(score, 3),
             "tier": _tier(score),
             "factors": {"market": round(m, 2), "form": round(f, 2),
-                        "consensus": round(c, 2), "momentum": adj},
+                        "flow": round(flow, 2), "consensus": round(c, 2),
+                        "momentum": round(adj, 3)},
         }
     return out

@@ -54,6 +54,16 @@
       <header><h2>🔮 HEURISTIC TRACK RECORD</h2><span class="sub">the rule-based firm-score, graded on real outcomes</span></header>
       <div id="tiers"></div>
       <div class="prose"><span class="mut">Every heuristic prediction is logged at the time it's made and scored once the race resolves. <b>Lift</b> = tier firm-rate ÷ overall firm-rate — above 1× means the score finds firmers better than chance. This is the baseline the ML model has to beat.</span></div>
+      <div class="prose"><b>How the score is built (v1.1)</b> — a weighted blend, per runner, field-relative, all knowable before the jump:
+        <table class="mtbl" style="margin-top:6px">
+          <tr><th style="text-align:left">FACTOR</th><th>WEIGHT</th><th style="text-align:left">SIGNAL</th></tr>
+          <tr><td>Market respect</td><td>0.35</td><td class="mut">implied probability from the best price, favourite-normalised</td></tr>
+          <tr><td>Recent form</td><td>0.25</td><td class="mut">TAB form rating, min-max within the field</td></tr>
+          <tr><td>Money flow</td><td>0.25</td><td class="mut">Betfair weight-of-money (backers stacking the queue) blended with tote pool-share change since open</td></tr>
+          <tr><td>Consensus</td><td>0.15</td><td class="mut">tipped runner / expert best-bet</td></tr>
+          <tr><td>× Momentum</td><td>0.75–1.10</td><td class="mut">graded by the size of the pool-share move — a whisper nudges, a surge saturates</td></tr>
+        </table>
+      </div>
     </section>
 
     <section class="panel">
