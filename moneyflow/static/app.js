@@ -15,7 +15,7 @@
     return "$" + Math.round(x);
   };
   const esc = (s) => (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const BOOK = { pointsbet: "PB", sportsbet: "SB", betfair: "BF", tab: "TAB" };
+  const BOOK = { pointsbet: "PB", sportsbet: "SB", betr: "BETR", betfair: "BF", tab: "TAB" };
   const ticks = (n) => "✓".repeat(n || 2);  // confirmation marks (one per market)
   function confirmMarkets(r) {
     const m = [];

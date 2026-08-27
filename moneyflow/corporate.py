@@ -5,10 +5,11 @@ For each active race we resolve the book's own race id (venue + race number +
 code) and pull win prices per runner — giving a live odds comparison and a
 best-price-on-the-market read alongside the tote pool share and Betfair WoM.
 
-Only Sportsbet + Pointsbet are wired: both cleanly expose win prices with
-movement. Ladbrokes/Neds (Entain) is intentionally omitted — its public racecard
-route 404s without auth — and Dabble too (per-race fixture matching is too heavy
-for fast polling). The book list is pluggable, so either can be added later.
+Sportsbet, Pointsbet and BetR are wired: all three cleanly expose win prices
+(BetR via GroupedRaceCard -> Race, verified live: Outcomes[].FixedPrices with
+MarketTypeCode WIN). Ladbrokes/Neds (Entain) is intentionally omitted — its
+public racecard route 404s without auth — and Dabble too (per-race fixture
+matching is too heavy for fast polling). The book list is pluggable.
 
 Prices are fetched on a slower cadence than the tote (they rate-limit) and cached,
 so every snapshot carries the latest corporate prices even between fetches.
@@ -142,11 +143,51 @@ class SportsbetBook(CorporateBook):
         return out
 
 
+class BetrBook(CorporateBook):
+    name = "betr"
+
+    _GROUP_CODE = {"Thoroughbred": "R", "Greyhounds": "G", "Trots": "H"}
+
+    async def build_index(self, engine: SportsDataEngine, date: str) -> None:
+        data = await engine.try_call("betr_grouped_racecard", DaysToRace=0)
+        if not data:
+            return
+        idx: dict[tuple[str, str, int], Any] = {}
+        for group, code in self._GROUP_CODE.items():
+            for meeting in data.get(group) or []:
+                # meetings arrive as lists of race rows; tolerate a flat row too
+                rows = meeting if isinstance(meeting, list) else [meeting]
+                for ra in rows:
+                    if not isinstance(ra, dict):
+                        continue
+                    rno, eid = ra.get("RaceNumber"), ra.get("EventId")
+                    if rno is None or eid is None:
+                        continue
+                    idx[(code, _norm_venue(str(ra.get("Venue") or "")), int(rno))] = eid
+        self._idx = idx
+
+    async def prices(self, engine: SportsDataEngine, handle: Any) -> dict[str, dict[str, Any]]:
+        rc = await engine.try_call("betr_race", eventId=handle)
+        out: dict[str, dict[str, Any]] = {}
+        if not rc:
+            return out
+        for oc in rc.get("Outcomes") or []:
+            if oc.get("IsScratched") or oc.get("Scratched"):
+                continue
+            win = next((fp.get("Price") for fp in (oc.get("FixedPrices") or [])
+                        if fp.get("MarketTypeCode") == "WIN" and fp.get("Price")), None)
+            if win:
+                # no fluctuation history on the card — CorporateSource records
+                # first-seen as the open, same baseline as the other books
+                out[_norm_runner(str(oc.get("OutcomeName") or ""))] = {"price": win, "open": None}
+        return out
+
+
 class CorporateSource:
     """Holds the enabled books, refreshes their indices, and merges prices in."""
 
     def __init__(self, books: list[CorporateBook] | None = None) -> None:
-        self.books = books if books is not None else [PointsbetBook(), SportsbetBook()]
+        self.books = books if books is not None else [PointsbetBook(), SportsbetBook(), BetrBook()]
         self._cache: dict[str, dict[str, dict[str, float]]] = {}  # race_key -> runner -> book -> price
         self._open: dict[str, dict[str, dict[str, float]]] = {}   # race_key -> runner -> book -> first-seen price
         self._last_fetch: dict[str, float] = {}
