@@ -28,6 +28,10 @@ from .firm.heuristic import firm_scores
 # tracking part-way through doesn't back-fill already-passed buckets with late data.
 _CAPTURE_TOL_MIN = 3.0
 
+# outcomes.horizon_price is recorded at this one offset — the flagship model
+# horizon. Other horizons reconstruct their H price from snapshots directly.
+_FLAGSHIP_HORIZON = 60
+
 
 def _minutes_to_jump(start_time: str | None) -> float | None:
     if not start_time:
@@ -49,6 +53,13 @@ class DataLogger:
         self._settled: set[str] = set()                          # outcomes written
 
     def observe(self, race_key: str, detail: dict[str, Any]) -> None:
+        # Betfair-fallback races (TAB down) have no tote, no corporates and —
+        # crucially — no TAB results, so they can never settle: capturing them
+        # would seed the training store with permanently label-less rows and
+        # drag the retention prune's coverage gate down. Exchange-only data is
+        # a different regime; the model's world is the TAB spine.
+        if ((detail.get("ref") or {}).get("location")) == "BF":
+            return
         status = detail.get("status")
         results = detail.get("results")
         if status == "RESULTED" and results:
@@ -141,7 +152,8 @@ class DataLogger:
                 continue
             open_p = prices[0]["best_price"]            # largest offset (earliest)
             jump_p = prices[-1]["best_price"]           # smallest offset (latest)
-            horizon_p = next((s["best_price"] for s in prices if s["offset_min"] == 60), None)
+            horizon_p = next((s["best_price"] for s in prices
+                              if s["offset_min"] == _FLAGSHIP_HORIZON), None)
             move = (jump_p / open_p - 1.0) * 100.0 if open_p else None
             firmed = 1 if (move is not None and move <= -self.threshold * 100.0) else 0
             finish = results.index(num) + 1 if num in results else None

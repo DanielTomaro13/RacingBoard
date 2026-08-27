@@ -36,6 +36,7 @@ def build_dataset(db_path: str, horizon: int = 60, threshold: float = 0.08) -> p
             JOIN races    r ON s.race_key = r.race_key
             LEFT JOIN runners rn ON s.race_key = rn.race_key AND s.number = rn.number
             WHERE s.offset_min = ?
+              AND (r.country IS NULL OR r.country != 'BF')  -- exchange-only fallback races: different regime
               AND s.best_price IS NOT NULL
               AND o.jump_price IS NOT NULL
               AND o.jump_price > 0

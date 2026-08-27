@@ -107,9 +107,11 @@ def rolling_eval(df: pd.DataFrame, folds: int = 4) -> dict:
         if iso is not None:
             p = iso.transform(p)
         m = _metrics(te[LABEL], p)
-        b1 = _metrics(te[LABEL], baseline_scores(tr, te)["B1_openprice"])
+        bases = baseline_scores(tr, te)
+        b0 = _metrics(te[LABEL], bases["B0_favourite"])
+        b1 = _metrics(te[LABEL], bases["B1_openprice"])
         rows.append({"fold": i + 1, "test_races": len(test_races),
-                     "model_auc": m["auc"], "b1_auc": b1["auc"]})
+                     "model_auc": m["auc"], "b0_auc": b0["auc"], "b1_auc": b1["auc"]})
     if not rows:
         return {"error": "no valid folds"}
     aucs = [r["model_auc"] for r in rows if r["model_auc"] is not None]
@@ -193,8 +195,8 @@ def _print(r: dict) -> None:
     def line(name, d):
         b = d["backtest"]
         print(f"  {name:14} AUC {str(d['auc']):>5}  logloss {str(d['logloss']):>7}  "
-              f"| picks {b.get('picks')}  ROI {str(b.get('roi')):>6}%  "
-              f"strike {b.get('strike_firm')}  CLV {b.get('clv_pct')}%")
+              f"| picks {b.get('picks')}  CLV {str(b.get('clv_pct')):>6}%  "
+              f"strike {b.get('strike_firm')}  flatROI {b.get('flat_roi')}%")
     print("  " + "-" * 76)
     line("MODEL", r["model"])
     for n, d in r["baselines"].items():
@@ -221,6 +223,6 @@ if __name__ == "__main__":
             print("  ⚠", r["error"])
         else:
             for f in r["folds"]:
-                print(f"  fold {f['fold']}: model AUC {f['model_auc']}  vs  B1 {f['b1_auc']}"
-                      f"  ({f['test_races']} test races)")
+                print(f"  fold {f['fold']}: model AUC {f['model_auc']}  vs  B0 {f.get('b0_auc')}"
+                      f"  B1 {f['b1_auc']}  ({f['test_races']} test races)")
             print(f"  mean: model {r['mean_model_auc']}  vs  B1 {r['mean_b1_auc']}")

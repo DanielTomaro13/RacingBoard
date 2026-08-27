@@ -152,6 +152,28 @@ class Poller:
         active = awaiting[:15] + upcoming[: settings.max_active_races]
         self._active_keys = [r.race_key for r in active]
 
+        # Training-census pass: races in the horizon but OUTSIDE the active set
+        # never get polled, so the DataLogger's far buckets (T-120/90/60/45/30)
+        # sat empty — the flagship H=60 dataset was starving while T-5/T-2
+        # overflowed. One-shot snapshot any such race as it crosses a far
+        # bucket (the logger dedups per bucket), capped per tick to stay
+        # polite to TAB. Board-visible cost: none — these races still show as
+        # upcoming; they just gain their early training marks.
+        if settings.enable_datalog and self.datalog:
+            active_set = set(self._active_keys)
+            census = []
+            for r in upcoming:
+                if r.race_key in active_set:
+                    continue
+                mins = (_ep(r) - now) / 60.0
+                if any(b >= mins and (b - mins) <= 3.0 for b in (120, 90, 60, 45, 30)):
+                    census.append(r.race_key)
+            for k in census[:8]:
+                try:
+                    await self._poll_race(k)
+                except Exception as exc:
+                    print(f"[census] {k}: {exc}")
+
         # Build / refresh Betfair market index and stamp market ids onto refs.
         if self.matcher and settings.enable_betfair:
             try:
