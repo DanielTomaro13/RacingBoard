@@ -368,6 +368,15 @@ def finalize_snapshot(snapshot: RaceSnapshot) -> None:
     if len(active) < 2:
         return
 
+    # TAB's FIXED odds are a book price like any corporate's — fold them into
+    # the book set so the grid shows them beside SB/PB/BetR and BEST means the
+    # best fixed price actually on offer, not best-excluding-TAB.
+    for r in active:
+        if r.fixed_win and r.fixed_win > 1:
+            r.corp = {**(r.corp or {}), "tab": r.fixed_win}
+            if r.corp_best is None or r.fixed_win > r.corp_best:
+                r.corp_best, r.corp_best_book = r.fixed_win, "tab"
+
     fair_prob: dict[int, float] = {}
 
     # Prefer Betfair mids when they cover most of the field (sharpest fair).
