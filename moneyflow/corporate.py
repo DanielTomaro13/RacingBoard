@@ -7,9 +7,25 @@ best-price-on-the-market read alongside the tote pool share and Betfair WoM.
 
 Sportsbet, Pointsbet and BetR are wired: all three cleanly expose win prices
 (BetR via GroupedRaceCard -> Race, verified live: Outcomes[].FixedPrices with
-MarketTypeCode WIN). Ladbrokes/Neds (Entain) is intentionally omitted — its
-public racecard route 404s without auth — and Dabble too (per-race fixture
-matching is too heavy for fast polling). The book list is pluggable.
+MarketTypeCode WIN). TAB's fixed odds join them from the tote path, and
+Betfair rides its own exchange client — five sources on a runner's grid.
+
+The rest are ABSENT ON EVIDENCE, re-tested 2026-08-28 from the deployment IP:
+
+  Entain (Ladbrokes/Neds) — entain_racing_next_races answers (15 races, venue
+    and race number present) but entain_racing_racecard 404s even for a race
+    id that call just returned. No price path exists, with or without the API
+    key. Retest by asking for a racecard on a fresh next_races id.
+  Dabble — 211 active "racing" competitions, but their fixtures are novelty
+    side-markets ("Bendigo Advertiser (0-1 Win)"), not race cards: no R<n>
+    fixture appears across 15 competitions, so there are no runner win prices
+    to match. Retest by looking for a race-numbered fixture name.
+  Unibet — unibet_racing_call is kind=graphql_persisted, a dispatch tool this
+    repo's lightweight engine wrapper does not implement ("unknown sportsdata
+    endpoint"). Adding persisted-GraphQL dispatch to engine.py unlocks it;
+    that is the one book with a real path still on the table.
+
+The book list is pluggable — a new CorporateBook subclass is ~30 lines.
 
 Prices are fetched on a slower cadence than the tote (they rate-limit) and cached,
 so every snapshot carries the latest corporate prices even between fetches.
