@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .betfair import BetfairClient
 from .config import settings
@@ -69,6 +69,29 @@ class Poller:
     def _today() -> str:
         return datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
 
+    @staticmethod
+    def _carryover_date() -> str | None:
+        """Yesterday, for as long as yesterday's card can still be running.
+
+        TAB files a race under its OWN meeting date and discovery asks for one
+        date, so at local midnight the date rolls and every race still filed
+        under yesterday drops out of the tracked set mid-flight. That is exactly
+        the European afternoon card, which jumps 14:00-16:00 UTC -- midnight to
+        02:00 in Sydney. Those races were seen from a distance, dropped about an
+        hour before the off, and never resolved: 100% of the races in the 15:00
+        UTC hour and 88% of the 14:00 hour, ~48 a day, taking their results,
+        outcomes and every bet riding on them with them.
+
+        Returns None outside the window, so an ordinary day costs no extra call.
+        Six is a generous close: the latest of these jumps at 02:00 local, and
+        `discover_races` drops anything more than 30 minutes past the off anyway,
+        so a finished card cannot accumulate here.
+        """
+        now = datetime.now(timezone.utc).astimezone()
+        if now.hour >= 6:
+            return None
+        return (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
     async def start(self) -> None:
         self._running = True
         if self.notifier:
@@ -100,6 +123,28 @@ class Poller:
             except Exception as exc:  # keep the loop alive
                 print(f"[discovery] error: {exc}")
 
+    async def _add_carryover(self, races: list[RaceRef]) -> list[RaceRef]:
+        """Fold in any of yesterday's races that are still live. A failure or an
+        empty day here is ordinary and must never disturb today's tracking, so
+        this swallows everything and returns what it was given."""
+        date = self._carryover_date()
+        if not date:
+            return races
+        try:
+            prev = await discover_races(self.engine, date)
+        except Exception as exc:
+            print(f"[discovery] carryover {date}: {exc}")
+            return races
+        if not prev:
+            return races
+        seen = {r.race_key for r in races}
+        extra = [r for r in prev[0] if r.race_key not in seen]
+        if extra:
+            print(f"[discovery] carryover {date}: +{len(extra)} still-live races")
+        # Earliest first: these jumped or are jumping now, so they are what the
+        # `awaiting` slice should be spending its fifteen places on.
+        return extra + races
+
     async def _discover_once(self) -> None:
         date = self._today()
         res = await discover_races(self.engine, date)
@@ -127,6 +172,7 @@ class Poller:
                 return
         else:
             races, self.next_up = res
+            races = await self._add_carryover(races)
         for ref in races:
             self.store.upsert_ref(ref)
 
